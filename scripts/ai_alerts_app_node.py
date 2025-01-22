@@ -34,10 +34,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from nepi_edge_sdk_base import nepi_ros
-from nepi_edge_sdk_base import nepi_save
-from nepi_edge_sdk_base import nepi_msg
-from nepi_edge_sdk_base import nepi_img 
+from nepi_sdk import nepi_ros
+from nepi_sdk import nepi_save
+from nepi_sdk import nepi_msg
+from nepi_sdk import nepi_img 
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
 from sensor_msgs.msg import Image
@@ -47,8 +47,8 @@ from nepi_ros_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierS
 
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
-from nepi_edge_sdk_base.save_data_if import SaveDataIF
-from nepi_edge_sdk_base.save_cfg_if import SaveCfgIF
+from nepi_sdk.save_data_if import SaveDataIF
+from nepi_sdk.save_cfg_if import SaveCfgIF
 
 # Do this at the end
 #from scipy.signal import find_peaks
