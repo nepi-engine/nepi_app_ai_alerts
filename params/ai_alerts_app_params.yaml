@@ -5,6 +5,8 @@ APP_DICT:
   config_file: app_ai_alerts.yaml
   app_file: ai_alerts_app_node.py
   node_name: app_ai_alerts
+  license_type: Numurus Software License
+  license_link: https://numurus.com/wp-content/uploads/Numurus-Software-License-Terms.pdf
 RUI_DICT:
   rui_menu_name: AI Alerts
   rui_files:
