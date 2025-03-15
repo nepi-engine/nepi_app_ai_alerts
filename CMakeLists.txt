@@ -215,7 +215,7 @@ install(DIRECTORY etc/
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 set( NEPI_APP_PARAMS_FOLDER 
   # Must hard-coded 
-  /opt/nepi/ros/share/nepi_apps
+  /opt/nepi/ros/share/nepi_apps/params
 )
 
 install(DIRECTORY params/
