@@ -47,8 +47,8 @@ from nepi_ros_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierS
 
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
-from nepi_sdk.save_data_if import SaveDataIF
-from nepi_sdk.save_cfg_if import SaveCfgIF
+from nepi_api.sys_if_save_data import SaveDataIF
+from nepi_api.sys_if_save_cfg import SaveCfgIF
 
 # Do this at the end
 #from scipy.signal import find_peaks
@@ -125,6 +125,8 @@ class NepiAiAlertsApp(object):
   last_trigger_time = None
 
   classes_selected = False
+
+  last_trigger_time = nepi_ros.ros_time_now()
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_ai_alerts" # Can be overwitten by luanch command
@@ -136,29 +138,11 @@ class NepiAiAlertsApp(object):
     nepi_msg.createMsgPublishers(self)
     nepi_msg.publishMsgInfo(self,"Starting Initialization Processes")
     ##############################
-    self.ai_mgr_namespace = self.base_namespace + self.AI_MANAGER_NODE_NAME
-    self.last_trigger_time = nepi_ros.ros_time_now()
+    # Init Param Server
+    self.initCb(do_updates = False)
+  
 
-
-    self.initParamServerValues(do_updates = False)
-    self.resetParamServer(do_updates = False)
-   
-
-
-    #self.detection_image_pub = rospy.Publisher("~detection_image",Image,queue_size=1)
-    # Setup Node Publishers
-    self.status_pub = rospy.Publisher("~status", AiAlertsStatus, queue_size=1, latch=True)
-    self.alerts_pub = rospy.Publisher("~alerts", AiAlerts, queue_size=1, latch=True)
-    self.alert_state_pub = rospy.Publisher("~alert_state", Bool, queue_size=1, latch=True)
-    self.alert_trigger_pub = rospy.Publisher("~alert_trigger",Empty,queue_size=1)
-    self.image_pub = rospy.Publisher("~alert_image",Image,queue_size=1, latch = True)
-    self.snapshot_pub = rospy.Publisher("~snapshot_trigger",Empty,queue_size=1, latch = False)
-    self.snapshot_nav_pub = rospy.Publisher(self.base_namespace + "nav_pose_mgr",Empty,queue_size=1, latch = False)
-    self.event_pub = rospy.Publisher(self.base_namespace + "event_trigger",Empty,queue_size=1, latch = False)
-
-    time.sleep(1)
-
-
+    ##############################
     # Message Image to publish when detector not running
     message = "APP NOT ENABLED"
     cv2_img = nepi_img.create_message_image(message)
@@ -175,19 +159,22 @@ class NepiAiAlertsApp(object):
     self.no_class_img = nepi_img.cv2img_to_rosimg(cv2_img)
 
 
-    # Set up save data and save config services ########################################################
-    factory_data_rates= {}
-    for d in self.data_products:
-        factory_data_rates[d] = [1.0, 0.0, 100.0] # Default to 1Hz save rate, set last save = 0.0, max rate = 100.0Hz
-    self.save_data_if = SaveDataIF(data_product_names = self.data_products, factory_data_rate_dict = factory_data_rates)
-    # Temp Fix until added as NEPI ROS Node
-    self.save_cfg_if = SaveCfgIF(updateParamsCallback=self.initParamServerValues, 
-                                 paramsModifiedCallback=self.updateFromParamServer)
-    ## App Setup ########################################################
-    app_reset_app_sub = rospy.Subscriber('~reset_app', Empty, self.resetAppCb, queue_size = 10)
-    self.initParamServerValues(do_updates=False)
 
-    # App Specific Subscribers
+    ##############################
+    ### Setup Node
+
+    # Setup Node Publishers
+    self.status_pub = rospy.Publisher("~status", AiAlertsStatus, queue_size=1, latch=True)
+    self.alerts_pub = rospy.Publisher("~alerts", AiAlerts, queue_size=1, latch=True)
+    self.alert_state_pub = rospy.Publisher("~alert_state", Bool, queue_size=1, latch=True)
+    self.alert_trigger_pub = rospy.Publisher("~alert_trigger",Empty,queue_size=1)
+    self.image_pub = rospy.Publisher("~alert_image",Image,queue_size=1, latch = True)
+    self.snapshot_pub = rospy.Publisher("~snapshot_trigger",Empty,queue_size=1, latch = False)
+    self.snapshot_nav_pub = rospy.Publisher(self.base_namespace + "nav_pose_mgr",Empty,queue_size=1, latch = False)
+    self.event_pub = rospy.Publisher(self.base_namespace + "event_trigger",Empty,queue_size=1, latch = False)
+
+    time.sleep(1)
+
     rospy.Subscriber('~publish_status', Empty, self.pubStatusCb, queue_size = 10)
     rospy.Subscriber('~enable_app', Bool, self.appEnableCb, queue_size = 10)
     rospy.Subscriber('~add_all_alert_classes', Empty, self.addAllClassesCb, queue_size = 10)
@@ -203,7 +190,22 @@ class NepiAiAlertsApp(object):
     rospy.Subscriber('~enable_snapshot_trigger', Bool, self.setSnapshotEnableCb, queue_size = 10)
 
 
+    self.save_cfg_if = SaveCfgIF(initCb=self.initCb, resetCb=self.resetCb,  factoryResetCb=self.factoryResetCb)
+    ready = self.save_cfg_if.wait_for_ready()
+
+    ##############################
+    self.initCb(do_updates = True)
+    # Set up save data and save config services 
+    factory_data_rates= {}
+    for d in self.data_products:
+        factory_data_rates[d] = [1.0, 0.0, 100.0] # Default to 1Hz save rate, set last save = 0.0, max rate = 100.0Hz
+    self.save_data_if = SaveDataIF(data_product_names = self.data_products, factory_data_rate_dict = factory_data_rates)
+
+
+    ##############################
     # Get AI Manager Service Call
+    self.ai_mgr_namespace = self.base_namespace + self.AI_MANAGER_NODE_NAME
+
     AI_MGR_STATUS_SERVICE_NAME = self.ai_mgr_namespace  + "/img_classifier_status_query"
     self.get_ai_mgr_status_service = rospy.ServiceProxy(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
     # Start AI Manager Subscribers
@@ -213,6 +215,7 @@ class NepiAiAlertsApp(object):
     rospy.Subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
     time.sleep(1)
 
+    ##############################
     # Start timed update processes
     nepi_ros.timer(nepi_ros.ros_duration(self.UDATE_PROCESS_DELAY), self.updaterCb)
     nepi_ros.timer(nepi_ros.ros_duration(self.IMG_PUB_PROCESS_DELAY), self.imagePubCb)
@@ -220,11 +223,11 @@ class NepiAiAlertsApp(object):
     time.sleep(1)
 
 
-    ## Initiation Complete
-    nepi_msg.publishMsgInfo(self," Initialization Complete")
     self.publish_status()
     self.alert_state_pub.publish(False)
-
+    
+    ## Initiation Complete
+    nepi_msg.publishMsgInfo(self," Initialization Complete")
     # Spin forever (until object is detected)
     nepi_ros.spin()
 
@@ -234,10 +237,7 @@ class NepiAiAlertsApp(object):
   #######################
   ### App Config Functions
 
-  def resetAppCb(self,msg):
-    self.resetApp()
-
-  def resetApp(self):
+  def factoryResetCb(self):
     nepi_ros.set_param(self,'~app_enabled',False)
     nepi_ros.set_param(self,'~last_classifier', "")
     nepi_ros.set_param(self,'~selected_classes', [])
@@ -253,19 +253,9 @@ class NepiAiAlertsApp(object):
 
     self.publish_status()
 
-  def saveConfigCb(self, msg):  # Just update Class init values. Saving done by Config IF system
-    pass # Left empty for sim, Should update from param server
 
-  def setCurrentAsDefault(self):
-    self.initParamServerValues(do_updates = False)
 
-  def updateFromParamServer(self):
-    #nepi_msg.publishMsgWarn(self,"Debugging: param_dict = " + str(param_dict))
-    #Run any functions that need updating on value change
-    # Don't need to run any additional functions
-    pass
-
-  def initParamServerValues(self,do_updates = True):
+  def initCb(self,do_updates = False):
       nepi_msg.publishMsgInfo(self," Setting init values to param values")
 
       self.init_app_enabled = nepi_ros.get_param(self,'~app_enabled',False)
@@ -284,13 +274,13 @@ class NepiAiAlertsApp(object):
       self.init_trigger_delay = nepi_ros.get_param(self,'~trigger_delay', self.FACTORY_TRIGGER_DELAY)
       self.init_snapshot_trigger_enabled = nepi_ros.get_param(self,'~snapshot_trigger_enabled', False)
       self.init_event_trigger_enabled = nepi_ros.get_param(self,'~event_trigger_enabled', False)
-
-      self.resetParamServer(do_updates)
-
-
+      if do_updates == True:
+        self.resetCb(do_updates)
 
 
-  def resetParamServer(self,do_updates = True):
+
+
+  def resetCb(self):
       nepi_ros.set_param(self,'~app_enabled',self.init_app_enabled)
       nepi_ros.set_param(self,'~last_classiier', self.init_last_classifier)
       nepi_ros.set_param(self,'~selected_classes', self.init_selected_classes)
@@ -301,10 +291,7 @@ class NepiAiAlertsApp(object):
       nepi_ros.set_param(self,'~trigger_delay',self.init_trigger_delay)
       nepi_ros.set_param(self,'~snapshot_trigger_enabled', self.init_snapshot_trigger_enabled)
       nepi_ros.set_param(self,'~event_trigger_enabled', self.init_event_trigger_enabled)
-
-      if do_updates:
-          self.updateFromParamServer()
-          self.publish_status()
+      self.publish_status()
 
 
   ###################
