@@ -19,7 +19,6 @@ import os
 # ROS namespace setup
 #NEPI_BASE_NAMESPACE = '/nepi/s2x/'
 #os.environ["ROS_NAMESPACE"] = NEPI_BASE_NAMESPACE[0:-1] # remove to run as automation script
-import rospy
 
 
 
@@ -159,7 +158,7 @@ class NepiAiAlertsApp(object):
     cv2_img = nepi_img.create_message_image(message)
     self.app_ne_img = nepi_img.cv2img_to_rosimg(cv2_img)
     self.app_ne_img.header.stamp = nepi_ros.ros_time_now()
-    self.image_pub.publish(self.app_ne_img)
+    self.node_if.publish_pub('image_pub', self.app_ne_img)
 
     message = "WAITING FOR AI DETECTOR TO START"
     cv2_img = nepi_img.create_message_image(message)
@@ -174,35 +173,239 @@ class NepiAiAlertsApp(object):
     ##############################
     ### Setup Node
 
-    # Setup Node Publishers
-    self.status_pub = rospy.Publisher("~status", AiAlertsStatus, queue_size=1, latch=True)
-    self.alerts_pub = rospy.Publisher("~alerts", AiAlerts, queue_size=1, latch=True)
-    self.alert_state_pub = rospy.Publisher("~alert_state", Bool, queue_size=1, latch=True)
-    self.alert_trigger_pub = rospy.Publisher("~alert_trigger",Empty,queue_size=1)
-    self.image_pub = rospy.Publisher("~alert_image",Image,queue_size=1, latch = True)
-    self.snapshot_pub = rospy.Publisher("~snapshot_trigger",Empty,queue_size=1, latch = False)
-    self.snapshot_nav_pub = rospy.Publisher(self.base_namespace + "nav_pose_mgr",Empty,queue_size=1, latch = False)
-    self.event_pub = rospy.Publisher(self.base_namespace + "event_trigger",Empty,queue_size=1, latch = False)
-
-    time.sleep(1)
-
-    rospy.Subscriber('~publish_status', Empty, self.pubStatusCb, queue_size = 10)
-    rospy.Subscriber('~enable_app', Bool, self.appEnableCb, queue_size = 10)
-    rospy.Subscriber('~add_all_alert_classes', Empty, self.addAllClassesCb, queue_size = 10)
-    rospy.Subscriber('~remove_all_alert_classes', Empty, self.removeAllClassesCb, queue_size = 10)
-    rospy.Subscriber('~add_alert_class', String, self.addClassCb, queue_size = 10)
-    rospy.Subscriber('~remove_alert_class', String, self.removeClassCb, queue_size = 10)
-    rospy.Subscriber("~set_alert_delay", Float32, self.setAlertDelayCb, queue_size = 10)
-    rospy.Subscriber("~set_clear_delay", Float32, self.setClearDelayCb, queue_size = 10)
-    rospy.Subscriber('~set_location_str', String, self.setLocationCb, queue_size = 10)
-
-    rospy.Subscriber("~set_trigger_delay", Float32, self.setSnapshotDelayCb, queue_size = 10)
-    rospy.Subscriber('~enable_event_trigger', Bool, self.setEventEnableCb, queue_size = 10)
-    rospy.Subscriber('~enable_snapshot_trigger', Bool, self.setSnapshotEnableCb, queue_size = 10)
 
 
-    self.save_cfg_if = SaveCfgIF(initCb=self.initCb, resetCb=self.resetCb,  factoryResetCb=self.factoryResetCb)
-    ready = self.save_cfg_if.wait_for_ready()
+
+    # Configs Config Dict ####################
+    self.CFGS_DICT = {
+        'init_callback': self.initCb,
+        'reset_callback': self.resetCb,
+        'factory_reset_callback': self.factoryResetCb,
+        'init_configs': True,
+        'namespace': self.node_namespace
+    }
+
+    # Publishers Config Dict ####################
+    self.PUBS_DICT = {
+        'status_pub': {
+            'namespace': self.node_namespace,
+            'topic': 'status',
+            'msg': AiAlertsStatus,
+            'qsize': 1,
+            'latch': True
+        },
+        'alerts_pub': {
+            'namespace': self.node_namespace,
+            'topic': 'alerts',
+            'msg': AiAlerts,
+            'qsize': 1,
+            'latch': True
+        },   
+        'alert_state_pub': {
+            'namespace': self.node_namespace,
+            'topic': 'alert_state',
+            'msg': Bool,
+            'qsize': 1,
+            'latch': True
+        },
+        'alert_trigger_pub': {
+            'namespace': self.node_namespace,
+            'topic': 'alert_trigger',
+            'msg': Empty,
+            'qsize': 1,
+            'latch': True
+        },
+        'image_pub': {
+            'namespace': self.node_namespace,
+            'topic': 'alert_image',
+            'msg': Image,
+            'qsize': 1,
+            'latch': True
+        },
+        'snapshot_pub': {
+            'namespace': self.node_namespace,
+            'topic': 'snapshot_trigger',
+            'msg': Empty,
+            'qsize': 1,
+            'latch': True
+        },   
+        'snapshot_nav_pub': {
+            'namespace': self.node_namespace,
+            'topic': "nav_pose_mgr",
+            'msg': Empty,
+            'qsize': 1,
+            'latch': True
+        },
+        'event_pub': {
+            'namespace': self.node_namespace,
+            'topic': "event_trigger",
+            'msg': AiAlertsStatus,
+            'qsize': 1,
+            'latch': True
+        }
+        
+    }  
+
+    # Subscribers Config Dict ####################
+    self.SUBS_DICT = {
+        'publish_status': {
+            'namespace': self.node_namespace,
+            'topic': 'publish_status',
+            'msg': Empty,
+            'qsize': 10,
+            'callback': self.pubStatusCb, 
+            'callback_args': ()
+        },
+        'enable_app': {
+            'namespace': self.node_namespace,
+            'topic': 'enable_app',
+            'msg': Bool,
+            'qsize': 10,
+            'callback': self.appEnableCb, 
+            'callback_args': ()
+        },
+        'add_all_alert_classes': {
+            'namespace': self.node_namespace,
+            'topic': 'add_all_alert_classes',
+            'msg': Empty,
+            'qsize': 10,
+            'callback': self.addAllClassesCb, 
+            'callback_args': ()
+        },
+        'remove_all_alert_classes': {
+            'namespace': self.node_namespace,
+            'topic': 'remove_all_alert_classes',
+            'msg': Empty,
+            'qsize': 10,
+            'callback': self.removeAllClassesCb, 
+            'callback_args': ()
+        },
+        'add_alert_class': {
+            'namespace': self.node_namespace,
+            'topic': 'add_alert_class',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.addClassCb, 
+            'callback_args': ()
+        },
+        'remove_alert_class': {
+            'namespace': self.node_namespace,
+            'topic': 'remove_alert_class',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.removeClassCb, 
+            'callback_args': ()
+        },
+        'set_alert_delay': {
+            'namespace': self.node_namespace,
+            'topic': 'set_alert_delay',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setAlertDelayCb, 
+            'callback_args': ()
+        },
+        'set_clear_delay': {
+            'namespace': self.node_namespace,
+            'topic': 'set_clear_delay',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setClearDelayCb, 
+            'callback_args': ()
+        },
+        'set_location_str': {
+            'namespace': self.node_namespace,
+            'topic': 'set_location_str',
+            'msg': String,
+            'qsize': 10,
+            'callback': self.setLocationCb, 
+            'callback_args': ()
+        },
+        'set_trigger_delay': {
+            'namespace': self.node_namespace,
+            'topic': 'set_trigger_delay',
+            'msg': Float32,
+            'qsize': 10,
+            'callback': self.setSnapshotDelayCb, 
+            'callback_args': ()
+        },
+        'enable_event_trigger': {
+            'namespace': self.node_namespace,
+            'topic': 'enable_event_trigger',
+            'msg': Bool,
+            'qsize': 10,
+            'callback': self.setEventEnableCb, 
+            'callback_args': ()
+        },
+        'enable_snapshot_trigger': {
+            'namespace': self.node_namespace,
+            'topic': 'enable_snapshot_trigger',
+            'msg': Bool,
+            'qsize': 10,
+            'callback': self.setSnapshotEnableCb, 
+            'callback_args': ()
+        },
+        'found_object': {
+            'namespace': self.node_namespace,
+            'topic': '/found_object' #self.ai_mgr_namespace  + "/found_object"
+            'msg': ObjectCount,
+            'qsize': 1,
+            'callback': self.foundObjectCb, 
+            'callback_args': ()
+        },
+        'bounding_boxes': {
+            'namespace': self.node_namespace,
+            'topic': '/bounding_boxes' self.ai_mgr_namespace  + "/bounding_boxes"
+            'msg': BoundingBoxes,
+            'qsize': 1,
+            'callback': self.objectDetectedCb, 
+            'callback_args': ()
+        }
+    }
+    
+   # Subscribers Config Dict ####################
+    self.publish_status = {
+        'enable_app': {
+            'namespace': self.node_namespace,
+            'topic': 'self.base_namespace + publish_status"',
+            'msg': Empty,
+            'qsize': 10,
+            'callback': self.setImageTpubStatusCbopicCb, 
+            'callback_args': ()
+        }
+                'enable_app': {
+            'namespace': self.node_namespace,
+            'topic': 'self.base_namespace + event_trigger"',
+            'msg': ImageSelection,
+            'qsize': 0,
+            'callback': self.setImageTopicCb, 
+            'callback_args': ()
+        }
+        'set_topic': {
+            'namespace': self.node_namespace,
+            'topic': 'self.base_namespace + event_trigger"',
+            'msg': ImageSelection,
+            'qsize': 10,
+            'callback': self.setImageTopicCb, 
+            'callback_args': ()
+        }        
+    
+
+
+
+    # Create Node Class ####################
+    self.node_if = NodeClassIF(self,
+                    configs_dict = self.CFGS_DICT,
+                    params_dict = self.PARAMS_DICT,
+                    pubs_dict = self.PUBS_DICT,
+                    subs_dict = self.SUBS_DICT,
+                    log_class_name = True
+    )
+
+    ready = self.node_if.wait_for_ready()
+
+
+}
+
 
     ##############################
     self.initCb(do_updates = True)
@@ -218,12 +421,12 @@ class NepiAiAlertsApp(object):
     self.ai_mgr_namespace = self.base_namespace + self.AI_MANAGER_NODE_NAME
 
     AI_MGR_STATUS_SERVICE_NAME = self.ai_mgr_namespace  + "/img_classifier_status_query"
-    self.get_ai_mgr_status_service = rospy.ServiceProxy(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
+    self.get_ai_mgr_status_service = self.nepi_ros.connect_service(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
     # Start AI Manager Subscribers
     FOUND_OBJECT_TOPIC = self.ai_mgr_namespace  + "/found_object"
-    rospy.Subscriber(FOUND_OBJECT_TOPIC, ObjectCount, self.foundObjectCb, queue_size = 1)
+    self.nepi_ros.create_subscriber(FOUND_OBJECT_TOPIC, ObjectCount, self.foundObjectCb, queue_size = 1)
     BOUNDING_BOXES_TOPIC = self.ai_mgr_namespace  + "/bounding_boxes"
-    rospy.Subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
+    self.nepi_ros.create_subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
     time.sleep(1)
 
     ##############################
@@ -235,7 +438,7 @@ class NepiAiAlertsApp(object):
 
 
     self.publish_status()
-    self.alert_state_pub.publish(False)
+    self.node_if.publish_pub('alert_state_pub', False)
     
     ## Initiation Complete
     self.msg_if.pub_info(" Initialization Complete")
@@ -249,42 +452,17 @@ class NepiAiAlertsApp(object):
   ### App Config Functions
 
   def factoryResetCb(self):
-    nepi_ros.set_param(self,'~app_enabled',False)
-    nepi_ros.set_param(self,'~last_classifier', "")
-    nepi_ros.set_param(self,'~selected_classes', [])
-    nepi_ros.set_param(self,'~alert_delay', self.FACTORY_ALERT_DELAY)
-    nepi_ros.set_param(self,'~clear_delay', self.FACTORY_CLEAR_DELAY)
-    nepi_ros.set_param(self,'~location', "")
-
-    nepi_ros.set_param(self,'~trigger_delay', self.FACTORY_TRIGGER_DELAY)
-    nepi_ros.set_param(self,'~snapshot_trigger_enabled', False)
-    nepi_ros.set_param(self,'~event_trigger_enabled', False)
-
     self.last_image_topic = ""
-
     self.publish_status()
 
 
 
   def initCb(self,do_updates = False):
       self.msg_if.pub_info(" Setting init values to param values")
-
-      self.init_app_enabled = nepi_ros.get_param(self,'~app_enabled',False)
-      self.init_last_classifier = nepi_ros.get_param(self,"~last_classifier", "")
-
-      sel_classes = nepi_ros.get_param(self,'~selected_classes', ['All'])
+      sel_classes = self.node_if.get_param('selected_classes')
       if 'All' in sel_classes:
         self.addAllClasses()
         time.sleep(1)
-      self.init_selected_classes = nepi_ros.get_param(self,'~selected_classes', [])
-      
-      self.init_alert_delay = nepi_ros.get_param(self,'~alert_delay', self.FACTORY_ALERT_DELAY)
-      self.init_clear_delay = nepi_ros.get_param(self,'~clear_delay', self.FACTORY_CLEAR_DELAY)
-      self.init_location = nepi_ros.get_param(self,'~location', "")
-
-      self.init_trigger_delay = nepi_ros.get_param(self,'~trigger_delay', self.FACTORY_TRIGGER_DELAY)
-      self.init_snapshot_trigger_enabled = nepi_ros.get_param(self,'~snapshot_trigger_enabled', False)
-      self.init_event_trigger_enabled = nepi_ros.get_param(self,'~event_trigger_enabled', False)
       if do_updates == True:
         self.resetCb(do_updates)
 
@@ -292,16 +470,6 @@ class NepiAiAlertsApp(object):
 
 
   def resetCb(self):
-      nepi_ros.set_param(self,'~app_enabled',self.init_app_enabled)
-      nepi_ros.set_param(self,'~last_classiier', self.init_last_classifier)
-      nepi_ros.set_param(self,'~selected_classes', self.init_selected_classes)
-      nepi_ros.set_param(self,'~alert_delay', self.init_alert_delay)
-      nepi_ros.set_param(self,'~clear_delay', self.init_clear_delay)
-      nepi_ros.set_param(self,'~location', self.init_location)
-
-      nepi_ros.set_param(self,'~trigger_delay',self.init_trigger_delay)
-      nepi_ros.set_param(self,'~snapshot_trigger_enabled', self.init_snapshot_trigger_enabled)
-      nepi_ros.set_param(self,'~event_trigger_enabled', self.init_event_trigger_enabled)
       self.publish_status()
 
 
@@ -310,10 +478,10 @@ class NepiAiAlertsApp(object):
   def publish_status(self):
     status_msg = AiAlertsStatus()
 
-    status_msg.app_enabled = nepi_ros.get_param(self,'~app_enabled',self.init_app_enabled)
+    status_msg.app_enabled = self.node_if.get_param('app_enabled')
     status_msg.app_msg = self.app_msg
 
-    status_msg.location_str = nepi_ros.get_param(self,'~location',self.init_location)
+    status_msg.location_str = self.node_if.get_param('location')
     status_msg.classifier_running = self.classifier_running
 
 
@@ -322,7 +490,7 @@ class NepiAiAlertsApp(object):
       avail_classes = ["None"]
     avail_classes = sorted(avail_classes)
     status_msg.available_classes_list = avail_classes
-    selected_classes = nepi_ros.get_param(self,'~selected_classes', self.init_selected_classes)
+    selected_classes = self.node_if.get_param('selected_classes')
     sel_classes = []
     for sel_class in selected_classes:
       if sel_class in avail_classes:
@@ -330,13 +498,13 @@ class NepiAiAlertsApp(object):
     if len(sel_classes) == 0:
       sel_classes = ['None']
     status_msg.selected_classes_list = sel_classes
-    status_msg.alert_delay_sec = nepi_ros.get_param(self,'~alert_delay', self.init_alert_delay)
-    status_msg.clear_delay_sec = nepi_ros.get_param(self,'~clear_delay', self.init_clear_delay)
+    status_msg.alert_delay_sec = self.node_if.get_param('alert_delay')
+    status_msg.clear_delay_sec = self.node_if.get_param('clear_delay')
 
-    status_msg.trigger_delay_sec = nepi_ros.get_param(self,'~trigger_delay', self.init_trigger_delay)
-    status_msg.snapshot_trigger_enabled = nepi_ros.get_param(self,'~snapshot_trigger_enabled', self.init_snapshot_trigger_enabled)
-    status_msg.event_trigger_enabled = nepi_ros.get_param(self,'~event_trigger_enabled', self.init_event_trigger_enabled)
-    self.status_pub.publish(status_msg)
+    status_msg.trigger_delay_sec = self.node_if.get_param('trigger_delay')
+    status_msg.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
+    status_msg.event_trigger_enabled = self.node_if.get_param('event_trigger_enabled')
+    self.node_if.publish_pub('status_pub', status_msg)
 
  
   ## Status Publisher
@@ -346,9 +514,9 @@ class NepiAiAlertsApp(object):
       stamp = nepi_ros.ros_time_now()
       alerts_msg.header.stamp = stamp
       alerts_msg.date_time_str = nepi_ros.get_datetime_str_from_stamp(stamp)
-      alerts_msg.location_str = nepi_ros.get_param(self,'~location',self.init_location)
+      alerts_msg.location_str = self.node_if.get_param('location')
       alerts_msg.alert_classes_list = active_alert_boxes
-      self.alerts_pub.publish(alerts_msg)     
+      self.node_if.publish_pub('alerts_pub', alerts_msg)     
     
  
 
@@ -356,7 +524,7 @@ class NepiAiAlertsApp(object):
     # Save last image topic for next check
     self.last_image_topic = self.current_image_topic
     update_status = False
-    app_enabled = nepi_ros.get_param(self,"~app_enabled", self.init_app_enabled)
+    app_enabled = self.node_if.get_param("~app_enabled")
     app_msg = ""
     if app_enabled == False:
       app_msg += "App not enabled"
@@ -379,7 +547,7 @@ class NepiAiAlertsApp(object):
     except Exception as e:
       self.msg_if.pub_warn("Failed to call AI MGR STATUS service" + str(e))
       self.classifier_running = False
-      nepi_ros.set_param(self,'~last_classiier', "")
+      self.node_if.set_param('last_classiier', "")
       app_msg += ", AI Detector not connected"
     if ai_mgr_status_response != None:
       app_msg += ", AI Detector connected"
@@ -404,7 +572,7 @@ class NepiAiAlertsApp(object):
             rgb_list.append(rgb)
           self.class_color_list = rgb_list
       self.classes_list = classes_list
-      nepi_ros.set_param(self,'~last_classiier', self.current_classifier)
+      self.node_if.set_param('last_classiier', self.current_classifier)
       #self.msg_if.pub_warn(" Got image topics last and current: " + self.last_image_topic + " " + self.current_image_topic)
 
       # Update Image Topic Subscriber
@@ -427,7 +595,7 @@ class NepiAiAlertsApp(object):
               time.sleep(1)
               self.image_sub = None
             self.msg_if.pub_info(" Subscribing to Image topic : " + image_topic)
-            self.image_sub = rospy.Subscriber(image_topic, Image, self.imageCb, queue_size = 1)
+            self.image_sub = self.nepi_ros.create_subscriber(image_topic, Image, self.imageCb, queue_size = 1)
 
         if self.current_image_topic == "None" or self.current_image_topic == "":  # Reset last image topic
           if self.image_sub != None:
@@ -442,7 +610,7 @@ class NepiAiAlertsApp(object):
       self.img_has_subs = (self.image_sub.get_num_connections() > 0)
 
     # Print a message image if needed
-    sel_classes = nepi_ros.get_param(self,'~selected_classes', self.init_selected_classes)
+    sel_classes = self.node_if.get_param('selected_classes')
     classes_selected = False
     for sel_class in sel_classes:
       if sel_class in self.classes_list:
@@ -456,15 +624,15 @@ class NepiAiAlertsApp(object):
       #self.msg_if.pub_warn("Publishing Not Enabled image")
       if not nepi_ros.is_shutdown():
         self.app_ne_img.header.stamp = nepi_ros.ros_time_now()
-        self.image_pub.publish(self.app_ne_img)
+        self.node_if.publish_pub('image_pub', self.app_ne_img)
     elif self.classifier_running == False:
       if not nepi_ros.is_shutdown():
         self.classifier_nr_img.header.stamp = nepi_ros.ros_time_now()
-        self.image_pub.publish(self.classifier_nr_img)
+        self.node_if.publish_pub('image_pub', self.classifier_nr_img)
     elif self.classes_selected == False:
       if not nepi_ros.is_shutdown():
         self.no_class_img.header.stamp = nepi_ros.ros_time_now()
-        self.image_pub.publish(self.no_class_img)
+        self.node_if.publish_pub('image_pub', self.no_class_img)
 
     self.app_msg = app_msg
     # Publish status if needed
@@ -483,7 +651,7 @@ class NepiAiAlertsApp(object):
   def appEnableCb(self,msg):
     #self.msg_if.pub_info(msg)
     val = msg.data
-    nepi_ros.set_param(self,'~app_enabled',val)
+    self.node_if.set_param('app_enabled', val)
     self.publish_status()
 
   def addAllClassesCb(self,msg):
@@ -492,51 +660,51 @@ class NepiAiAlertsApp(object):
 
   def addAllClasses(self):
     ##self.msg_if.pub_info(msg)
-    nepi_ros.set_param(self,'~selected_classes', self.classes_list)
+    self.node_if.set_param('selected_classes', self.classes_list)
 
 
   def removeAllClassesCb(self,msg):
     ##self.msg_if.pub_info(msg)
-    nepi_ros.set_param(self,'~selected_classes',[])
+    self.node_if.set_param('selected_classes',[])
     self.publish_status()
 
   def addClassCb(self,msg):
     ##self.msg_if.pub_info(msg)
     class_name = msg.data
     if class_name in self.classes_list:
-      sel_classes = nepi_ros.get_param(self,'~selected_classes', self.init_selected_classes)
+      sel_classes = self.node_if.get_param('selected_classes')
       if class_name not in sel_classes:
         sel_classes.append(class_name)
-      nepi_ros.set_param(self,'~selected_classes', sel_classes)
+      self.node_if.set_param('selected_classes', sel_classes)
     self.publish_status()
 
   def removeClassCb(self,msg):
     ##self.msg_if.pub_info(msg)
     class_name = msg.data
-    sel_classes = nepi_ros.get_param(self,'~selected_classes', self.init_selected_classes)
+    sel_classes = self.node_if.get_param('selected_classes')
     if class_name in sel_classes:
       sel_classes.remove(class_name)
-      nepi_ros.set_param(self,'~selected_classes', sel_classes)
+      self.node_if.set_param('selected_classes', sel_classes)
     self.publish_status()
 
   def setAlertDelayCb(self,msg):
     self.msg_if.pub_info(msg)
     val = msg.data
     if val >= 0 and val <= 1:
-      nepi_ros.set_param(self,'~alert_delay',val)
+      self.node_if.set_param('alert_delay',val)
     self.publish_status()
 
   def setClearDelayCb(self,msg):
     self.msg_if.pub_info(msg)
     val = msg.data
     if val >= 0 and val <= 1:
-      nepi_ros.set_param(self,'~clear_delay',val)
+      self.node_if.set_param('clear_delay',val)
     self.publish_status()
 
   def setLocationCb(self,msg):
     ##self.msg_if.pub_info(msg)
     location_str = msg.data
-    nepi_ros.set_param(self,'~location', location_str)
+    self.node_if.set_param('location', location_str)
     self.publish_status()
 
 
@@ -544,21 +712,21 @@ class NepiAiAlertsApp(object):
     #self.msg_if.pub_info(msg)
     val = msg.data
     if val > 0 :
-      nepi_ros.set_param(self,'~trigger_delay',val)
+      self.node_if.set_param('trigger_delay',val)
     self.publish_status()
 
         
   def setSnapshotEnableCb(self,msg):
     #self.msg_if.pub_info(msg)
     val = msg.data
-    nepi_ros.set_param(self,'~snapshot_trigger_enabled',val)
+    self.node_if.set_param('snapshot_trigger_enabled',val)
     self.publish_status()
 
         
   def setEventEnableCb(self,msg):
     #self.msg_if.pub_info(msg)
     val = msg.data
-    nepi_ros.set_param(self,'~event_trigger_enabled',val)
+    self.node_if.set_param('event_trigger_enabled',val)
     self.publish_status()
   
 
@@ -568,7 +736,7 @@ class NepiAiAlertsApp(object):
 
   ### If object(s) detected, save bounding box info to global
   def objectDetectedCb(self,bounding_boxes_msg):
-    app_enabled = nepi_ros.get_param(self,"~app_enabled", self.init_app_enabled)
+    app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
     ros_timestamp = bounding_boxes_msg.header.stamp
 
     if app_enabled == False:
@@ -578,7 +746,7 @@ class NepiAiAlertsApp(object):
       self.alert_classes = []
     else:
       alert_boxes = []
-      sel_classes = nepi_ros.get_param(self,'~selected_classes', self.init_selected_classes)
+      sel_classes = self.node_if.get_param('selected_classes')
       for box in bounding_boxes_msg.bounding_boxes:
         if box.Class in sel_classes:
           alert_boxes.append(box)
@@ -622,7 +790,7 @@ class NepiAiAlertsApp(object):
     snapshot_enabled = self.save_data_if.data_product_snapshot_enabled(data_product)
     should_save = (saving_is_enabled and self.save_data_if.data_product_should_save(data_product)) or snapshot_enabled
     #self.msg_if.pub_warn("Checking for save_: " + str(should_save))
-    app_enabled = nepi_ros.get_param(self,"~app_enabled", self.init_app_enabled)
+    app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
     
     if app_enabled and self.image_sub is not None and self.classifier_running and self.classes_selected:
       if has_subscribers or should_save:
@@ -638,7 +806,7 @@ class NepiAiAlertsApp(object):
 
           if len(alert_boxes) == 0:
             if img_msg is not None and not nepi_ros.is_shutdown():
-              self.image_pub.publish(img_msg)
+              self.node_if.publish_pub('image_pub', img_msg)
           else:
             if img_msg is not None:
               current_image_header = img_msg.header
@@ -666,7 +834,7 @@ class NepiAiAlertsApp(object):
                     encode = 'mono8'
                   img_out_msg = nepi_img.cv2img_to_rosimg(cv2_img, encoding=encode)
                   img_out_msg.header.stamp = ros_timestamp
-                  self.image_pub.publish(img_out_msg)
+                  self.node_if.publish_pub(img_out_msg)
               # Save Data if \
               if should_save:
                 nepi_save.save_img2file(self,data_product,cv2_img,ros_timestamp,save_check = False)
@@ -682,7 +850,7 @@ class NepiAiAlertsApp(object):
 
   ### Monitor Output of AI model to clear detection status
   def foundObjectCb(self,found_obj_msg):
-    app_enabled = nepi_ros.get_param(self,"~app_enabled", self.init_app_enabled)
+    app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
     ros_timestamp = found_obj_msg.header.stamp
     #Clean Up Detection and Alert data
     if found_obj_msg.count == 0:
@@ -696,7 +864,7 @@ class NepiAiAlertsApp(object):
     self.alerts_dict_lock.release()
 
     # Purge old alerts
-    clear_delay = nepi_ros.get_param(self,'~clear_delay', self.init_clear_delay)
+    clear_delay = self.node_if.get_param('clear_delay')
     purge_alert_list = []
     for key in alerts_dict.keys():
       last_alert_time =(ros_timestamp.to_sec() - alerts_dict[key]['last_alert_time'].to_sec())
@@ -711,7 +879,7 @@ class NepiAiAlertsApp(object):
     # Check current alert trigger time
     active_alert = False
     active_alert_classes = []
-    alert_delay = nepi_ros.get_param(self,'~alert_delay', self.init_alert_delay)
+    alert_delay = self.node_if.get_param('alert_delay')
     for key in alerts_dict.keys():
       first_alert_time =(ros_timestamp.to_sec() - alerts_dict[key]['first_alert_time'].to_sec())
       if first_alert_time > alert_delay:
@@ -720,30 +888,30 @@ class NepiAiAlertsApp(object):
           active_alert_classes.append(key)
     self.alert_classes = active_alert_classes
     self.active_alert = active_alert
-    self.alert_state_pub.publish(self.active_alert)
+    self.node_if.publish_pub('alert_state_pub', self.active_alert)
     if len(active_alert_classes) > 0:
       self.publish_alerts(active_alert_classes)
       alerts_save_dict = dict()
       alerts_save_dict['timestamp'] = nepi_ros.get_datetime_str_from_stamp(ros_timestamp)
-      alerts_save_dict['location'] = nepi_ros.get_param(self,'~location',self.init_location)
+      alerts_save_dict['location'] = self.node_if.get_param('location')
       alerts_save_dict['alert_classes_list'] = active_alert_classes
       nepi_save.save_dict2file(self,'alert_data',alerts_save_dict,ros_timestamp,save_check = True)
 
 
     # Do stuff on active alert state
     if active_alert == True:
-        trigger_delay = nepi_ros.get_param(self,'~trigger_delay', self.init_trigger_delay)
+        trigger_delay = self.node_if.get_param('trigger_delay')
         trigger_time = (ros_timestamp.to_sec() - self.last_trigger_time.to_sec())
         if (trigger_time > trigger_delay):
           self.last_trigger_time = ros_timestamp
-          self.alert_trigger_pub.publish(Empty())
-          snapshot_trigger_enabled = nepi_ros.get_param(self,'~snapshot_trigger_enabled', self.init_snapshot_trigger_enabled)
+          self.node_if.publish_pub('alert_trigger_pub', Empty())
+          snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
           if snapshot_trigger_enabled:
-            self.snapshot_pub.publish(Empty())
-            self.snapshot_nav_pub.publish(Empty())
-          event_trigger_enabled = nepi_ros.get_param(self,'~event_trigger_enabled', self.init_event_trigger_enabled)
+            self.node_if.publish_pub('snapshot_pub', Empty())
+            self.node_if.publish_pub('snapshot_nav_pub', Empty())
+          event_trigger_enabled = self.node_if.get_param('event_trigger_enabled')
           if event_trigger_enabled:
-            self.event_pub.publish(Empty())
+            self.node_if.publish_pub('event_pub', Empty())
         # Publish and save active alert boxes
         self.alert_boxes_lock.acquire()
         alert_boxes = self.alert_boxes    
