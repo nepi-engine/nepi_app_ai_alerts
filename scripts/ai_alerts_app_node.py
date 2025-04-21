@@ -50,7 +50,7 @@ from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
 from nepi_api.node_if import NodeClassIF
 from nepi_api.connect_node_if import ConnectNodeClassIF
-from nepi_api.sys_if_msg import MsgIF
+from nepi_api.messages_if import MsgIF
 from nepi_api.sys_if_save_data import SaveDataIF
 from nepi_api.sys_if_save_cfg import SaveCfgIF
 
@@ -393,7 +393,7 @@ class NepiAiAlertsApp(object):
 
 
     # Create Node Class ####################
-    self.node_if = NodeClassIF(self,
+    self.node_if = NodeClassIF(
                     configs_dict = self.CFGS_DICT,
                     params_dict = self.PARAMS_DICT,
                     pubs_dict = self.PUBS_DICT,
