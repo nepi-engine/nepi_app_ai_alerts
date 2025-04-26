@@ -35,8 +35,6 @@ import matplotlib.pyplot as plt
 
 from nepi_sdk import nepi_ros
 from nepi_sdk import nepi_utils
-from nepi_sdk import nepi_save
-from nepi_sdk import nepi_msg
 from nepi_sdk import nepi_img 
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
@@ -51,8 +49,8 @@ from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 from nepi_api.node_if import NodeClassIF
 from nepi_api.connect_node_if import ConnectNodeClassIF
 from nepi_api.messages_if import MsgIF
-from nepi_api.sys_if_save_data import SaveDataIF
-from nepi_api.sys_if_save_cfg import SaveCfgIF
+from nepi_api.system_if import SaveDataIF
+from nepi_api.system_if import SaveCfgIF
 
 # Do this at the end
 #from scipy.signal import find_peaks
@@ -148,11 +146,8 @@ class NepiAiAlertsApp(object):
     self.msg_if.pub_info("Starting IF Initialization Processes")
 
     ##############################     
-    # Init Param Server
-    self.initCb(do_updates = False)
-  
+    # Initialize Class Variables
 
-    ##############################
     # Message Image to publish when detector not running
     message = "APP NOT ENABLED"
     cv2_img = nepi_img.create_message_image(message)
@@ -173,9 +168,6 @@ class NepiAiAlertsApp(object):
     ##############################
     ### Setup Node
 
-
-
-
     # Configs Config Dict ####################
     self.CFGS_DICT = {
         'init_callback': self.initCb,
@@ -184,6 +176,28 @@ class NepiAiAlertsApp(object):
         'init_configs': True,
         'namespace': self.node_namespace
     }
+
+
+
+nepi_ros.set_param(self,'~app_enabled',False)
+nepi_ros.set_param(self,'~last_classifier', "")
+nepi_ros.set_param(self,'~selected_classes', [])
+nepi_ros.set_param(self,'~alert_delay', self.FACTORY_ALERT_DELAY)
+nepi_ros.set_param(self,'~clear_delay', self.FACTORY_CLEAR_DELAY)
+nepi_ros.set_param(self,'~location', "")
+
+nepi_ros.set_param(self,'~trigger_delay', self.FACTORY_TRIGGER_DELAY)
+nepi_ros.set_param(self,'~snapshot_trigger_enabled', False)
+nepi_ros.set_param(self,'~event_trigger_enabled', False)
+
+    # Params Config Dict ####################
+    self.PARAMS_DICT = {
+        '??': {
+            'namespace': self.node_namespace,
+            'factory_val': ??
+        }
+    }
+
 
     # Publishers Config Dict ####################
     self.PUBS_DICT = {
@@ -362,35 +376,6 @@ class NepiAiAlertsApp(object):
         }
     }
     
-   # Subscribers Config Dict ####################
-    self.publish_status = {
-        'enable_app': {
-            'namespace': self.node_namespace,
-            'topic': 'self.base_namespace + publish_status"',
-            'msg': Empty,
-            'qsize': 10,
-            'callback': self.setImageTpubStatusCbopicCb, 
-            'callback_args': ()
-        }
-                'enable_app': {
-            'namespace': self.node_namespace,
-            'topic': 'self.base_namespace + event_trigger"',
-            'msg': ImageSelection,
-            'qsize': 0,
-            'callback': self.setImageTopicCb, 
-            'callback_args': ()
-        }
-        'set_topic': {
-            'namespace': self.node_namespace,
-            'topic': 'self.base_namespace + event_trigger"',
-            'msg': ImageSelection,
-            'qsize': 10,
-            'callback': self.setImageTopicCb, 
-            'callback_args': ()
-        }        
-    
-
-
 
     # Create Node Class ####################
     self.node_if = NodeClassIF(
@@ -404,7 +389,6 @@ class NepiAiAlertsApp(object):
     ready = self.node_if.wait_for_ready()
 
 
-}
 
 
     ##############################
@@ -451,12 +435,6 @@ class NepiAiAlertsApp(object):
   #######################
   ### App Config Functions
 
-  def factoryResetCb(self):
-    self.last_image_topic = ""
-    self.publish_status()
-
-
-
   def initCb(self,do_updates = False):
       self.msg_if.pub_info(" Setting init values to param values")
       sel_classes = self.node_if.get_param('selected_classes')
@@ -467,11 +445,12 @@ class NepiAiAlertsApp(object):
         self.resetCb(do_updates)
 
 
-
-
   def resetCb(self):
       self.publish_status()
 
+  def factoryResetCb(self):
+    self.last_image_topic = ""
+    self.publish_status()
 
   ###################
   ## Status Publisher
@@ -837,7 +816,7 @@ class NepiAiAlertsApp(object):
                   self.node_if.publish_pub(img_out_msg)
               # Save Data if \
               if should_save:
-                nepi_save.save_img2file(self,data_product,cv2_img,ros_timestamp,save_check = False)
+                self.save_data_if.save_img2file(data_product,cv2_img,ros_timestamp,save_check = False)
 
   def imageCb(self,image_msg):   
       #self.msg_if.pub_warn("Got image msg: ") 
@@ -895,7 +874,7 @@ class NepiAiAlertsApp(object):
       alerts_save_dict['timestamp'] = nepi_ros.get_datetime_str_from_stamp(ros_timestamp)
       alerts_save_dict['location'] = self.node_if.get_param('location')
       alerts_save_dict['alert_classes_list'] = active_alert_classes
-      nepi_save.save_dict2file(self,'alert_data',alerts_save_dict,ros_timestamp,save_check = True)
+      self.save_data_if.save_dict2file('alert_data',alerts_save_dict,ros_timestamp,save_check = True)
 
 
     # Do stuff on active alert state
