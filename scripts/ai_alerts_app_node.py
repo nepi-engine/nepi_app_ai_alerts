@@ -51,6 +51,8 @@ from nepi_api.connect_node_if import ConnectNodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.system_if import SaveDataIF
 from nepi_api.system_if import SaveCfgIF
+from nepi_api.system_if import TriggersIF
+from nepi_api.data_if import ImageIF
 
 # Do this at the end
 #from scipy.signal import find_peaks
@@ -69,8 +71,11 @@ class NepiAiAlertsApp(object):
   FACTORY_CLEAR_DELAY = 2.0
   FACTORY_TRIGGER_DELAY = 10.0
 
-
   NONE_CLASSES_DICT = dict()
+
+  STATES_DICT = dict()
+  TRIGGERS_DICT = dict()
+
 
   data_products = ["alert_image","alert_data"]
   
@@ -83,7 +88,6 @@ class NepiAiAlertsApp(object):
   image_source_topic = ""
   img_width = 0
   img_height = 0
-  image_sub = None
 
 
   last_image_topic = "None"
@@ -91,13 +95,8 @@ class NepiAiAlertsApp(object):
   alert_boxes = []
   active_alert = False
 
-
-  status_pub = None
-  alert_trigger_pub = None
-  alerts_pub = None
-  image_pub = None
-  alerts_boxes_2d_pub = None
-
+  image_if = None
+  image_sub = None
 
   classifier_running = False
   classifier_loading_progress = 0.0
@@ -112,8 +111,6 @@ class NepiAiAlertsApp(object):
   img_msg = None
   last_img_msg = None
   img_lock = threading.Lock()
-
-  img_has_subs = False
 
 
   alert_boxes = []
@@ -150,18 +147,15 @@ class NepiAiAlertsApp(object):
 
     # Message Image to publish when detector not running
     message = "APP NOT ENABLED"
-    cv2_img = nepi_img.create_message_image(message)
-    self.app_ne_img = nepi_img.cv2img_to_rosimg(cv2_img)
-    self.app_ne_img.header.stamp = nepi_ros.ros_time_now()
-    self.node_if.publish_pub('image_pub', self.app_ne_img)
+    self.app_ne_img = nepi_img.create_message_image(message)
 
     message = "WAITING FOR AI DETECTOR TO START"
-    cv2_img = nepi_img.create_message_image(message)
-    self.classifier_nr_img = nepi_img.cv2img_to_rosimg(cv2_img)
+    self.classifier_nr_img = nepi_img.create_message_image(message)
+
 
     message = "WAITING FOR ALERT CLASSES SELECTION"
-    cv2_img = nepi_img.create_message_image(message)
-    self.no_class_img = nepi_img.cv2img_to_rosimg(cv2_img)
+    self.no_class_img = nepi_img.create_message_image(message)
+
 
 
 
@@ -178,24 +172,41 @@ class NepiAiAlertsApp(object):
     }
 
 
-
-nepi_ros.set_param(self,'~app_enabled',False)
-nepi_ros.set_param(self,'~last_classifier', "")
-nepi_ros.set_param(self,'~selected_classes', [])
-nepi_ros.set_param(self,'~alert_delay', self.FACTORY_ALERT_DELAY)
-nepi_ros.set_param(self,'~clear_delay', self.FACTORY_CLEAR_DELAY)
-nepi_ros.set_param(self,'~location', "")
-
-nepi_ros.set_param(self,'~trigger_delay', self.FACTORY_TRIGGER_DELAY)
-nepi_ros.set_param(self,'~snapshot_trigger_enabled', False)
-nepi_ros.set_param(self,'~event_trigger_enabled', False)
-
     # Params Config Dict ####################
     self.PARAMS_DICT = {
-        '??': {
+        'app_enabled': {
             'namespace': self.node_namespace,
-            'factory_val': ??
+            'factory_val': False
+        },
+        'last_classifier': {
+            'namespace': self.node_namespace,
+            'factory_val': ""
+        },
+        'selected_classes': {
+            'namespace': self.node_namespace,
+            'factory_val': []
+        },
+        'alert_delay': {
+            'namespace': self.node_namespace,
+            'factory_val': self.FACTORY_ALERT_DELAY
+        },
+        'clear_delay': {
+            'namespace': self.node_namespace,
+            'factory_val': self.FACTORY_CLEAR_DELAY
+        },
+        'location': {
+            'namespace': self.node_namespace,
+            'factory_val': ""
+        },
+        'trigger_delay': {
+            'namespace': self.node_namespace,
+            'factory_val': self.FACTORY_TRIGGER_DELAY
+        },
+        'snapshot_trigger_enabled': {
+            'namespace': self.node_namespace,
+            'factory_val': False
         }
+
     }
 
 
@@ -215,45 +226,10 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
             'qsize': 1,
             'latch': True
         },   
-        'alert_state_pub': {
-            'namespace': self.node_namespace,
-            'topic': 'alert_state',
-            'msg': Bool,
-            'qsize': 1,
-            'latch': True
-        },
-        'alert_trigger_pub': {
-            'namespace': self.node_namespace,
-            'topic': 'alert_trigger',
-            'msg': Empty,
-            'qsize': 1,
-            'latch': True
-        },
-        'image_pub': {
-            'namespace': self.node_namespace,
-            'topic': 'alert_image',
-            'msg': Image,
-            'qsize': 1,
-            'latch': True
-        },
         'snapshot_pub': {
             'namespace': self.node_namespace,
             'topic': 'snapshot_trigger',
             'msg': Empty,
-            'qsize': 1,
-            'latch': True
-        },   
-        'snapshot_nav_pub': {
-            'namespace': self.node_namespace,
-            'topic': "nav_pose_mgr",
-            'msg': Empty,
-            'qsize': 1,
-            'latch': True
-        },
-        'event_pub': {
-            'namespace': self.node_namespace,
-            'topic': "event_trigger",
-            'msg': AiAlertsStatus,
             'qsize': 1,
             'latch': True
         }
@@ -278,33 +254,33 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
             'callback': self.appEnableCb, 
             'callback_args': ()
         },
-        'add_all_alert_classes': {
+        'add_all_classes': {
             'namespace': self.node_namespace,
-            'topic': 'add_all_alert_classes',
+            'topic': 'add_all_classes',
             'msg': Empty,
             'qsize': 10,
             'callback': self.addAllClassesCb, 
             'callback_args': ()
         },
-        'remove_all_alert_classes': {
+        'remove_all_classes': {
             'namespace': self.node_namespace,
-            'topic': 'remove_all_alert_classes',
+            'topic': 'remove_all_classes',
             'msg': Empty,
             'qsize': 10,
             'callback': self.removeAllClassesCb, 
             'callback_args': ()
         },
-        'add_alert_class': {
+        'add_class': {
             'namespace': self.node_namespace,
-            'topic': 'add_alert_class',
+            'topic': 'add_class',
             'msg': String,
             'qsize': 10,
             'callback': self.addClassCb, 
             'callback_args': ()
         },
-        'remove_alert_class': {
+        'remove_class': {
             'namespace': self.node_namespace,
-            'topic': 'remove_alert_class',
+            'topic': 'remove_class',
             'msg': String,
             'qsize': 10,
             'callback': self.removeClassCb, 
@@ -340,14 +316,6 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
             'msg': Float32,
             'qsize': 10,
             'callback': self.setSnapshotDelayCb, 
-            'callback_args': ()
-        },
-        'enable_event_trigger': {
-            'namespace': self.node_namespace,
-            'topic': 'enable_event_trigger',
-            'msg': Bool,
-            'qsize': 10,
-            'callback': self.setEventEnableCb, 
             'callback_args': ()
         },
         'enable_snapshot_trigger': {
@@ -389,15 +357,42 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
     ready = self.node_if.wait_for_ready()
 
 
+    # Setup Image IF
+    self.image_if = ImageIF(namespace = self.node_namespace, topic = 'alert_image')
 
 
-    ##############################
-    self.initCb(do_updates = True)
-    # Set up save data and save config services 
+    # Setup Save Data IF
     factory_data_rates= {}
     for d in self.data_products:
         factory_data_rates[d] = [1.0, 0.0, 100.0] # Default to 1Hz save rate, set last save = 0.0, max rate = 100.0Hz
     self.save_data_if = SaveDataIF(data_product_names = self.data_products, factory_data_rate_dict = factory_data_rates)
+
+    # Setup States IF
+    self.STATES_DICT = {
+                    "ai_alert_active": {
+                        "name":"ai_alert_active",
+                        "node_name": self.node_name,
+                        "description": "Current alert detection state",
+                        "type":"Bool",
+                        "options": [],
+                        "value":"False"
+                        }
+    }
+    self.states_if = StatesIF(get_states_dict_function = self.get_states_dict_function)
+
+
+    # Setup Triggers IF
+    self.TRIGGERS_DICT = {
+                    "ai_alert_trigger": {
+                        "name":"ai_alert_trigger",
+                        "namespace": self.namespace,
+                        "description": "Triggered on alert detection",
+                        "data_str_list":["None"],
+                        "time":nepi_utils.get_time()
+                        }
+    }
+    self.triggers_if = TriggersIF(triggers_dict = self.Triggers_Dict)
+
 
 
     ##############################
@@ -413,7 +408,12 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
     self.nepi_ros.create_subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
     time.sleep(1)
 
+
     ##############################
+    # Finish Initialization Processes
+    self.initCb(do_updates = True)
+    self.image_if.publish_cv2_image(self.app_ne_img)
+
     # Start timed update processes
     nepi_ros.timer(nepi_ros.ros_duration(self.UDATE_PROCESS_DELAY), self.updaterCb)
     nepi_ros.timer(nepi_ros.ros_duration(self.IMG_PUB_PROCESS_DELAY), self.imagePubCb)
@@ -421,14 +421,18 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
     time.sleep(1)
 
 
+
     self.publish_status()
-    self.node_if.publish_pub('alert_state_pub', False)
-    
+   
     ## Initiation Complete
     self.msg_if.pub_info(" Initialization Complete")
     # Spin forever (until object is detected)
     nepi_ros.spin()
 
+
+
+  def get_states_dict_function(self):
+    return self.STATES_DICT
 
 
 
@@ -440,7 +444,6 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
       sel_classes = self.node_if.get_param('selected_classes')
       if 'All' in sel_classes:
         self.addAllClasses()
-        time.sleep(1)
       if do_updates == True:
         self.resetCb(do_updates)
 
@@ -482,7 +485,6 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
 
     status_msg.trigger_delay_sec = self.node_if.get_param('trigger_delay')
     status_msg.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
-    status_msg.event_trigger_enabled = self.node_if.get_param('event_trigger_enabled')
     self.node_if.publish_pub('status_pub', status_msg)
 
  
@@ -584,9 +586,6 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
             self.image_sub = None
             update_status = True
             time.sleep(1)
-    # Check for img subscribers
-    if self.image_sub is not None:
-      self.img_has_subs = (self.image_sub.get_num_connections() > 0)
 
     # Print a message image if needed
     sel_classes = self.node_if.get_param('selected_classes')
@@ -601,17 +600,11 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
     #self.msg_if.pub_warn("" )
     if app_enabled == False:
       #self.msg_if.pub_warn("Publishing Not Enabled image")
-      if not nepi_ros.is_shutdown():
-        self.app_ne_img.header.stamp = nepi_ros.ros_time_now()
-        self.node_if.publish_pub('image_pub', self.app_ne_img)
+      self.image_if.publish_cv2_image(self.app_ne_img)
     elif self.classifier_running == False:
-      if not nepi_ros.is_shutdown():
-        self.classifier_nr_img.header.stamp = nepi_ros.ros_time_now()
-        self.node_if.publish_pub('image_pub', self.classifier_nr_img)
+      self.image_if.publish_cv2_image(self.classifier_nr_img)
     elif self.classes_selected == False:
-      if not nepi_ros.is_shutdown():
-        self.no_class_img.header.stamp = nepi_ros.ros_time_now()
-        self.node_if.publish_pub('image_pub', self.no_class_img)
+      self.image_if.publish_cv2_image(self.no_class_img)
 
     self.app_msg = app_msg
     # Publish status if needed
@@ -701,13 +694,7 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
     self.node_if.set_param('snapshot_trigger_enabled',val)
     self.publish_status()
 
-        
-  def setEventEnableCb(self,msg):
-    #self.msg_if.pub_info(msg)
-    val = msg.data
-    self.node_if.set_param('event_trigger_enabled',val)
-    self.publish_status()
-  
+         
 
   #######################
   ### AI Magnager Callbacks
@@ -763,7 +750,7 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
 
   def imagePubCb(self,timer):
     data_product = 'alert_image'
-    has_subscribers = self.img_has_subs
+    has_subscribers = self.image_if.has_subscribers_check()
     #self.msg_if.pub_warn("Checking for subscribers: " + str(has_subscribers))
     saving_is_enabled = self.save_data_if.data_product_saving_enabled(data_product)
     snapshot_enabled = self.save_data_if.data_product_snapshot_enabled(data_product)
@@ -771,7 +758,7 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
     #self.msg_if.pub_warn("Checking for save_: " + str(should_save))
     app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
     
-    if app_enabled and self.image_sub is not None and self.classifier_running and self.classes_selected:
+    if app_enabled and self.image_if is not None and self.classifier_running and self.classes_selected:
       if has_subscribers or should_save:
         self.img_lock.acquire()
         img_msg = copy.deepcopy(self.img_msg)
@@ -783,40 +770,35 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
           alert_boxes = self.alert_boxes   
           self.alert_boxes_lock.release()
 
-          if len(alert_boxes) == 0:
-            if img_msg is not None and not nepi_ros.is_shutdown():
-              self.node_if.publish_pub('image_pub', img_msg)
+
+          
+          current_image_header = img_msg.header
+          ros_timestamp = img_msg.header.stamp     
+          cv2_img = nepi_img.rosimg_to_cv2img(img_msg)
+
+          #Convert OpenCV image to ROS image
+          cv2_shape = cv2_img.shape
+          if  cv2_shape[2] == 3:
+            encode = 'bgr8'
           else:
-            if img_msg is not None:
-              current_image_header = img_msg.header
-              ros_timestamp = img_msg.header.stamp     
-              cv2_img = nepi_img.rosimg_to_cv2img(img_msg).astype(np.uint8)
+            encode = 'mono8'
 
-              for box in alert_boxes:
-                #self.msg_if.pub_warn(" Box: " + str(box))
-                class_name = box.Class
-                [xmin,xmax,ymin,ymax] = [box.xmin,box.xmax,box.ymin,box.ymax]
-                start_point = (xmin, ymin)
-                end_point = (xmax, ymax)
-                class_name = class_name
-                class_color = (0,0,255)
-                line_thickness = 2
-                cv2.rectangle(cv2_img, start_point, end_point, class_color, thickness=line_thickness)
 
-              # Publish new image to ros
-              if not nepi_ros.is_shutdown() and has_subscribers: #and has_subscribers:
-                  #Convert OpenCV image to ROS image
-                  cv2_shape = cv2_img.shape
-                  if  cv2_shape[2] == 3:
-                    encode = 'bgr8'
-                  else:
-                    encode = 'mono8'
-                  img_out_msg = nepi_img.cv2img_to_rosimg(cv2_img, encoding=encode)
-                  img_out_msg.header.stamp = ros_timestamp
-                  self.node_if.publish_pub(img_out_msg)
-              # Save Data if \
-              if should_save:
-                self.save_data_if.save_img2file(data_product,cv2_img,ros_timestamp,save_check = False)
+          for box in alert_boxes:
+            #self.msg_if.pub_warn(" Box: " + str(box))
+            class_name = box.Class
+            [xmin,xmax,ymin,ymax] = [box.xmin,box.xmax,box.ymin,box.ymax]
+            start_point = (xmin, ymin)
+            end_point = (xmax, ymax)
+            class_name = class_name
+            class_color = (0,0,255)
+            line_thickness = 2
+            cv2.rectangle(cv2_img, start_point, end_point, class_color, thickness=line_thickness)
+
+          self.image_if.publish_cv2_image(cv2_img, timestamp = ros_timestamp, encoding=encode)
+          # Save Data if 
+          if should_save:
+            self.save_data_if.save_img2file(data_product,cv2_img,ros_timestamp,save_check = False)
 
   def imageCb(self,image_msg):   
       #self.msg_if.pub_warn("Got image msg: ") 
@@ -867,7 +849,7 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
           active_alert_classes.append(key)
     self.alert_classes = active_alert_classes
     self.active_alert = active_alert
-    self.node_if.publish_pub('alert_state_pub', self.active_alert)
+
     if len(active_alert_classes) > 0:
       self.publish_alerts(active_alert_classes)
       alerts_save_dict = dict()
@@ -887,10 +869,17 @@ nepi_ros.set_param(self,'~event_trigger_enabled', False)
           snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
           if snapshot_trigger_enabled:
             self.node_if.publish_pub('snapshot_pub', Empty())
-            self.node_if.publish_pub('snapshot_nav_pub', Empty())
-          event_trigger_enabled = self.node_if.get_param('event_trigger_enabled')
-          if event_trigger_enabled:
-            self.node_if.publish_pub('event_pub', Empty())
+
+        if 'ai_alert_state' in self.STATES_DICT.keys():
+          self.STATES_DICT['ai_alert_state']['value'] = str(self.active_alert)
+
+
+        if 'ai_alert_trigger' in self.Triggers_Dict.keys():
+          trigger_dict = self.Triggers_Dict['ai_alert_trigger']
+          trigger_dict['time']=trigger_time
+          self.triggers_if.publish_trigger(trigger_dict)
+
+
         # Publish and save active alert boxes
         self.alert_boxes_lock.acquire()
         alert_boxes = self.alert_boxes    
