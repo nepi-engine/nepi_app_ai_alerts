@@ -702,7 +702,7 @@ class NepiAiAlertsApp(object):
 
   ### If object(s) detected, save bounding box info to global
   def objectDetectedCb(self,bounding_boxes_msg):
-    app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
+    app_enabled = self.node_if.get_param('app_enabled')
     ros_timestamp = bounding_boxes_msg.header.stamp
 
     if app_enabled == False:
@@ -756,7 +756,7 @@ class NepiAiAlertsApp(object):
     snapshot_enabled = self.save_data_if.data_product_snapshot_enabled(data_product)
     should_save = (saving_is_enabled and self.save_data_if.data_product_should_save(data_product)) or snapshot_enabled
     #self.msg_if.pub_warn("Checking for save_: " + str(should_save))
-    app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
+    app_enabled = self.node_if.get_param('app_enabled')
     
     if app_enabled and self.image_if is not None and self.classifier_running and self.classes_selected:
       if has_subscribers or should_save:
@@ -811,7 +811,7 @@ class NepiAiAlertsApp(object):
 
   ### Monitor Output of AI model to clear detection status
   def foundObjectCb(self,found_obj_msg):
-    app_enabled = self.node_if.get_param('app_enabled', self.init_app_enabled)
+    app_enabled = self.node_if.get_param('app_enabled')
     ros_timestamp = found_obj_msg.header.stamp
     #Clean Up Detection and Alert data
     if found_obj_msg.count == 0:
