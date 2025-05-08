@@ -61,8 +61,8 @@ class AppAiAlerts extends Component {
 
       image_topic: null,
       
+      viewableClasses: false,
       available_classes_list: [],
-      last_classes_list: [],
       selected_classes_list:[],
 
       alert_delay_sec : null,
@@ -75,7 +75,7 @@ class AppAiAlerts extends Component {
 
       alert_state: false,
         
-      viewableTopics: false,
+
 
       statusListener: null,
       alertListener: null,
@@ -99,7 +99,7 @@ class AppAiAlerts extends Component {
     
     this.onToggleClassSelection = this.onToggleClassSelection.bind(this)
     this.getClassOptions = this.getClassOptions.bind(this)
-    this.toggleViewableTopics = this.toggleViewableTopics.bind(this)
+    this.toggleViewableClassesTopics = this.toggleViewableClassesTopics.bind(this)
 
   }
 
@@ -128,8 +128,9 @@ class AppAiAlerts extends Component {
     image_topic: message.image_topic,
 
     classifier_running: message.classifier_running,
-    available_classes_list: message.available_classes_list,
-    selected_classes_list: message.selected_classes_list,
+
+    available_classes_list: message.available_classes,
+    selected_classes_list: message.selected_classes,
 
     alert_delay_sec : message.alert_delay_sec ,
     clear_delay_sec : message.clear_delay_sec ,
@@ -144,13 +145,6 @@ class AppAiAlerts extends Component {
       connected: true
     })
 
-    const last_classes_list = this.state.last_classes_list
-    this.setState({
-      last_classes_list: this.state.available_classes_list
-    })
-    if (last_classes_list !== this.state.available_classes_list){
-      this.render()
-    }
   }
 
   // Callback for handling ROS Status messages
@@ -268,9 +262,9 @@ class AppAiAlerts extends Component {
   }
 
 
-  toggleViewableTopics() {
-    const set = !this.state.viewableTopics
-    this.setState({viewableTopics: set})
+  toggleViewableClassesTopics() {
+    const set = !this.state.viewableClasses
+    this.setState({viewableClasses: set})
   }
 
 
@@ -306,10 +300,11 @@ class AppAiAlerts extends Component {
     const {sendBoolMsg, sendTriggerMsg,} = this.props.ros
     const classOptions = this.getClassOptions()
     const selectedClasses = this.state.selected_classes_list
+    const classes_sel = selectedClasses[0] !== "" && selectedClasses[0] !== "None"
     const classifier_running = this.state.classifier_running
     const connected = this.state.connected === true
     const appNamespace = this.getAppNamespace()
-    const classes_sel = selectedClasses[0] !== "" && selectedClasses[0] !== "None"
+
 
     return (
       <Section title={"AI Alerts App"}>
@@ -398,10 +393,10 @@ class AppAiAlerts extends Component {
 
          <Label title="Select Alert Classes"> </Label>
 
-                    <div onClick={this.toggleViewableTopics} style={{backgroundColor: Styles.vars.colors.grey0}}>
+                    <div onClick={this.toggleViewableClassesTopics} style={{backgroundColor: Styles.vars.colors.grey0}}>
                       <Select style={{width: "10px"}}/>
                     </div>
-                    <div hidden={this.state.viewableTopics === false}>
+                    <div hidden={this.state.viewableClasses === false}>
                     {classOptions.map((Class) =>
                     <div onClick={this.onToggleClassSelection}
                       style={{
