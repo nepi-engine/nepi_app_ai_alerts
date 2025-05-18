@@ -31,7 +31,7 @@ import Toggle from "react-toggle"
 import BooleanIndicator from "./BooleanIndicator"
 
 
-import CameraViewer from "./CameraViewer"
+import ImageViewer from "./Nepi_IF_ImageViewer"
 import NepiIFSaveData from "./Nepi_IF_SaveData"
 
 
@@ -540,7 +540,7 @@ class AppAiAlerts extends Component {
 
       </div>
 
-      <CameraViewer
+      <ImageViewer
         imageTopic={imageNamespace}
         title={this.state.image_name}
         hideQualitySelector={false}
