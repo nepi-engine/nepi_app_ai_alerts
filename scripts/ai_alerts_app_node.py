@@ -46,7 +46,6 @@ from nepi_ros_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierS
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
 
-from nepi_api.node_if import NodeClassIF
 from nepi_api.connect_node_if import ConnectNodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.system_if import SaveDataIF
