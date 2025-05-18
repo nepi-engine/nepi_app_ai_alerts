@@ -46,7 +46,6 @@ from nepi_ros_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierS
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
 
-from nepi_api.node_if import NodeClassIF
 from nepi_api.connect_node_if import ConnectNodeClassIF
 from nepi_api.messages_if import MsgIF
 from nepi_api.system_if import SaveDataIF
@@ -132,7 +131,7 @@ class NepiAiAlertsApp(object):
   def __init__(self):
     #### APP NODE INIT SETUP ####
     nepi_ros.init_node(name= self.DEFAULT_NODE_NAME)
-   self.class_name = type(self).__name__
+    self.class_name = type(self).__name__
     self.base_namespace = nepi_ros.get_base_namespace()
     self.node_name = nepi_ros.get_node_name()
     self.node_namespace = nepi_ros.get_node_namespace()
@@ -328,7 +327,7 @@ class NepiAiAlertsApp(object):
         },
         'found_object': {
             'namespace': self.node_namespace,
-            'topic': '/found_object' #self.ai_mgr_namespace  + "/found_object"
+            'topic': '/found_object', #self.ai_mgr_namespace  + "/found_object"
             'msg': ObjectCount,
             'qsize': 1,
             'callback': self.foundObjectCb, 
@@ -336,7 +335,7 @@ class NepiAiAlertsApp(object):
         },
         'bounding_boxes': {
             'namespace': self.node_namespace,
-            'topic': '/bounding_boxes' self.ai_mgr_namespace  + "/bounding_boxes"
+            'topic': '/bounding_boxes', #self.ai_mgr_namespace  + "/bounding_boxes"
             'msg': BoundingBoxes,
             'qsize': 1,
             'callback': self.objectDetectedCb, 
