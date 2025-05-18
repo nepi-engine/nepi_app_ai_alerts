@@ -350,8 +350,7 @@ class NepiAiAlertsApp(object):
                     configs_dict = self.CFGS_DICT,
                     params_dict = self.PARAMS_DICT,
                     pubs_dict = self.PUBS_DICT,
-                    subs_dict = self.SUBS_DICT,
-                    log_class_name = True
+                    subs_dict = self.SUBS_DICT
     )
 
     ready = self.node_if.wait_for_ready()
