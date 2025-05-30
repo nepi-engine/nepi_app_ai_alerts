@@ -31,8 +31,6 @@ from nepi_ros_interfaces.msg import BoundingBox, BoundingBoxes, ObjectCount
 
 from nepi_ros_interfaces.msg import SaveDataRate, SaveDataStatus
 
-from nepi_ros_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierStatusQueryRequest
-
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
 from nepi_api.messages_if import MsgIF
@@ -105,72 +103,63 @@ class ConnectAppAiAlerts:
                 'topic': 'publish_status',
                 'msg': Empty,
                 'qsize': 10,
-                'callback': self.pubStatusCb, 
-                'callback_args': ()
+                'latch': False
             },
             'enable_app': {
                 'namespace': self.node_namespace,
                 'topic': 'enable_app',
                 'msg': Bool,
                 'qsize': 10,
-                'callback': self.appEnableCb, 
-                'callback_args': ()
+                'latch': False
             },
             'add_all_classes': {
                 'namespace': self.node_namespace,
                 'topic': 'add_all_classes',
                 'msg': Empty,
                 'qsize': 10,
-                'callback': self.addAllClassesCb, 
-                'callback_args': ()
+                'latch': False
             },
             'remove_all_classes': {
                 'namespace': self.node_namespace,
                 'topic': 'remove_all_classes',
                 'msg': Empty,
                 'qsize': 10,
-                'callback': self.removeAllClassesCb, 
-                'callback_args': ()
+                'latch': False
             },
             'add_class': {
                 'namespace': self.node_namespace,
                 'topic': 'add_class',
                 'msg': String,
                 'qsize': 10,
-                'callback': self.addClassCb, 
-                'callback_args': ()
+                'latch': False
             },
             'remove_class': {
                 'namespace': self.node_namespace,
                 'topic': 'remove_class',
                 'msg': String,
                 'qsize': 10,
-                'callback': self.removeClassCb, 
-                'callback_args': ()
+                'latch': False
             },
             'set_alert_delay': {
                 'namespace': self.node_namespace,
                 'topic': 'set_alert_delay',
                 'msg': Float32,
                 'qsize': 10,
-                'callback': self.setAlertDelayCb, 
-                'callback_args': ()
+                'latch': False
             },
             'set_clear_delay': {
                 'namespace': self.node_namespace,
                 'topic': 'set_clear_delay',
                 'msg': Float32,
                 'qsize': 10,
-                'callback': self.setClearDelayCb, 
-                'callback_args': ()
+                'latch': False
             },
             'set_location_str': {
                 'namespace': self.node_namespace,
                 'topic': 'set_location_str',
                 'msg': String,
                 'qsize': 10,
-                'callback': self.setLocationCb, 
-                'callback_args': ()
+                'latch': False
             },
             'set_trigger_delay': {
                 'namespace': self.node_namespace,
@@ -185,24 +174,23 @@ class ConnectAppAiAlerts:
                 'topic': 'enable_snapshot_trigger',
                 'msg': Bool,
                 'qsize': 10,
-                'callback': self.setSnapshotEnableCb, 
-                'callback_args': ()
+                'latch': False            
             },
+
             'found_object': {
                 'namespace': self.node_namespace,
                 'topic': '/found_object', #self.ai_mgr_namespace  + "/found_object"
                 'msg': ObjectCount,
                 'qsize': 1,
-                'callback': self.foundObjectCb, 
-                'callback_args': ()
+                'latch': False
             },
             'bounding_boxes': {
                 'namespace': self.node_namespace,
                 'topic': '/bounding_boxes', #self.ai_mgr_namespace  + "/bounding_boxes"
                 'msg': BoundingBoxes,
                 'qsize': 1,
-                'callback': self.objectDetectedCb, 
-                'callback_args': ()
+                'latch': False
+
             }
         }
 
@@ -320,7 +308,7 @@ class ConnectAppAiAlerts:
     def unregister(self):
         self._unsubscribeTopic()
 
-    def publish_status(self)
+    def publish_status(self):
         pub_name = 'publish_status'
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
@@ -330,12 +318,12 @@ class ConnectAppAiAlerts:
         msg = enable_app
         self.con_node_if.publish_pub(pub_name,msg)  
 
-    def add_all_classes(self)
+    def add_all_classes(self):
         pub_name = 'add_all_classes'
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg) 
 
-    def reset_controls(self)
+    def reset_controls(self):
         pub_name = 'reset_controls'
         msg = Empty()
         self.con_node_if.publish_pub(pub_name,msg)
