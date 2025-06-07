@@ -33,15 +33,15 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from nepi_sdk import nepi_ros
+from nepi_sdk import nepi_sdk
 from nepi_sdk import nepi_utils
 from nepi_sdk import nepi_img 
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
 from sensor_msgs.msg import Image
-from nepi_ros_interfaces.msg import BoundingBox, BoundingBoxes, ObjectCount
+from nepi_sdk_interfaces.msg import BoundingBox, BoundingBoxes, ObjectCount
 
-from nepi_ros_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierStatusQueryRequest
+from nepi_sdk_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierStatusQueryRequest
 
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
@@ -124,17 +124,17 @@ class NepiAiAlertsApp(object):
 
   classes_selected = False
 
-  last_trigger_time = nepi_ros.ros_time_now()
+  last_trigger_time = nepi_sdk.get_msg_time()
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_ai_alerts" # Can be overwitten by luanch command
   def __init__(self):
     #### APP NODE INIT SETUP ####
-    nepi_ros.init_node(name= self.DEFAULT_NODE_NAME)
+    nepi_sdk.init_node(name= self.DEFAULT_NODE_NAME)
     self.class_name = type(self).__name__
-    self.base_namespace = nepi_ros.get_base_namespace()
-    self.node_name = nepi_ros.get_node_name()
-    self.node_namespace = nepi_ros.get_node_namespace()
+    self.base_namespace = nepi_sdk.get_base_namespace()
+    self.node_name = nepi_sdk.get_node_name()
+    self.node_namespace = nepi_sdk.get_node_namespace()
 
     ##############################  
     # Create Msg Class
@@ -398,12 +398,12 @@ class NepiAiAlertsApp(object):
     self.ai_mgr_namespace = self.base_namespace + self.AI_MANAGER_NODE_NAME
 
     AI_MGR_STATUS_SERVICE_NAME = self.ai_mgr_namespace  + "/img_classifier_status_query"
-    self.get_ai_mgr_status_service = self.nepi_ros.connect_service(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
+    self.get_ai_mgr_status_service = self.nepi_sdk.connect_service(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
     # Start AI Manager Subscribers
     FOUND_OBJECT_TOPIC = self.ai_mgr_namespace  + "/found_object"
-    self.nepi_ros.create_subscriber(FOUND_OBJECT_TOPIC, ObjectCount, self.foundObjectCb, queue_size = 1)
+    self.nepi_sdk.create_subscriber(FOUND_OBJECT_TOPIC, ObjectCount, self.foundObjectCb, queue_size = 1)
     BOUNDING_BOXES_TOPIC = self.ai_mgr_namespace  + "/bounding_boxes"
-    self.nepi_ros.create_subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
+    self.nepi_sdk.create_subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
     time.sleep(1)
 
 
@@ -413,8 +413,8 @@ class NepiAiAlertsApp(object):
     self.image_if.publish_cv2_image(self.app_ne_img)
 
     # Start timed update processes
-    nepi_ros.timer(nepi_ros.ros_duration(self.UDATE_PROCESS_DELAY), self.updaterCb)
-    nepi_ros.timer(nepi_ros.ros_duration(self.IMG_PUB_PROCESS_DELAY), self.imagePubCb)
+    nepi_sdk.timer(nepi_sdk.ros_duration(self.UDATE_PROCESS_DELAY), self.updaterCb)
+    nepi_sdk.timer(nepi_sdk.ros_duration(self.IMG_PUB_PROCESS_DELAY), self.imagePubCb)
 
     time.sleep(1)
 
@@ -425,7 +425,7 @@ class NepiAiAlertsApp(object):
     ## Initiation Complete
     self.msg_if.pub_info(" Initialization Complete")
     # Spin forever (until object is detected)
-    nepi_ros.spin()
+    nepi_sdk.spin()
 
 
 
@@ -490,9 +490,9 @@ class NepiAiAlertsApp(object):
   def publish_alerts(self,active_alert_boxes):
     if self.active_alert == True:
       alerts_msg = AiAlerts()
-      stamp = nepi_ros.ros_time_now()
+      stamp = nepi_sdk.get_msg_time()
       alerts_msg.header.stamp = stamp
-      alerts_msg.date_time_str = nepi_ros.get_datetime_str_from_stamp(stamp)
+      alerts_msg.date_time_str = nepi_sdk.get_datetime_str_from_stamp(stamp)
       alerts_msg.location_str = self.node_if.get_param('location')
       alerts_msg.alert_classes_list = active_alert_boxes
       self.node_if.publish_pub('alerts_pub', alerts_msg)     
@@ -563,7 +563,7 @@ class NepiAiAlertsApp(object):
         if (self.last_image_topic != self.current_image_topic) or (self.image_sub == None and self.current_image_topic != "None") or self.reset_image_topic == True:
           update_status = True
           self.reset_image_topic = False
-          image_topic = nepi_ros.find_topic(self.current_image_topic)
+          image_topic = nepi_sdk.find_topic(self.current_image_topic)
           if image_topic == "":
             self.msg_if.pub_warn(" Could not find image update topic: " + self.current_image_topic)
           elif app_enabled == True and image_topic != "None":
@@ -574,7 +574,7 @@ class NepiAiAlertsApp(object):
               time.sleep(1)
               self.image_sub = None
             self.msg_if.pub_info(" Subscribing to Image topic : " + image_topic)
-            self.image_sub = self.nepi_ros.create_subscriber(image_topic, Image, self.imageCb, queue_size = 1)
+            self.image_sub = self.nepi_sdk.create_subscriber(image_topic, Image, self.imageCb, queue_size = 1)
 
         if self.current_image_topic == "None" or self.current_image_topic == "":  # Reset last image topic
           if self.image_sub != None:
@@ -701,7 +701,7 @@ class NepiAiAlertsApp(object):
   ### If object(s) detected, save bounding box info to global
   def objectDetectedCb(self,bounding_boxes_msg):
     app_enabled = self.node_if.get_param('app_enabled')
-    ros_timestamp = bounding_boxes_msg.header.stamp
+    get_msg_timestamp = bounding_boxes_msg.header.stamp
 
     if app_enabled == False:
       alert_boxes_acquire = False
@@ -724,12 +724,12 @@ class NepiAiAlertsApp(object):
           box_class = box.Class
           if box_class not in alerts_dict.keys():
             alerts_dict[box_class] = dict()
-            alerts_dict[box_class]['first_alert_time'] = ros_timestamp
-            alerts_dict[box_class]['last_alert_time'] = ros_timestamp
+            alerts_dict[box_class]['first_alert_time'] = get_msg_timestamp
+            alerts_dict[box_class]['last_alert_time'] = get_msg_timestamp
           else:
             if 'first_alert_time' not in alerts_dict[box_class].keys():
-              alerts_dict[box_class]['first_alert_time'] = ros_timestamp
-            alerts_dict[box_class]['last_alert_time'] = ros_timestamp
+              alerts_dict[box_class]['first_alert_time'] = get_msg_timestamp
+            alerts_dict[box_class]['last_alert_time'] = get_msg_timestamp
             
         self.alert_boxes_lock.acquire()
         self.alert_boxes = alert_boxes      
@@ -771,7 +771,7 @@ class NepiAiAlertsApp(object):
 
           
           current_image_header = img_msg.header
-          ros_timestamp = img_msg.header.stamp     
+          get_msg_timestamp = img_msg.header.stamp     
           cv2_img = nepi_img.rosimg_to_cv2img(img_msg)
 
           #Convert OpenCV image to ROS image
@@ -793,10 +793,10 @@ class NepiAiAlertsApp(object):
             line_thickness = 2
             cv2.rectangle(cv2_img, start_point, end_point, class_color, thickness=line_thickness)
 
-          self.image_if.publish_cv2_image(cv2_img, timestamp = ros_timestamp, encoding=encode)
+          self.image_if.publish_cv2_image(cv2_img, timestamp = get_msg_timestamp, encoding=encode)
           # Save Data if 
           if should_save:
-            self.save_data_if.save_img2file(data_product,cv2_img,ros_timestamp,save_check = False)
+            self.save_data_if.save_img2file(data_product,cv2_img,get_msg_timestamp,save_check = False)
 
   def imageCb(self,image_msg):   
       #self.msg_if.pub_warn("Got image msg: ") 
@@ -810,7 +810,7 @@ class NepiAiAlertsApp(object):
   ### Monitor Output of AI model to clear detection status
   def foundObjectCb(self,found_obj_msg):
     app_enabled = self.node_if.get_param('app_enabled')
-    ros_timestamp = found_obj_msg.header.stamp
+    get_msg_timestamp = found_obj_msg.header.stamp
     #Clean Up Detection and Alert data
     if found_obj_msg.count == 0:
       self.alert_boxes_lock.acquire()
@@ -826,7 +826,7 @@ class NepiAiAlertsApp(object):
     clear_delay = self.node_if.get_param('clear_delay')
     purge_alert_list = []
     for key in alerts_dict.keys():
-      last_alert_time =(ros_timestamp.to_sec() - alerts_dict[key]['last_alert_time'].to_sec())
+      last_alert_time =(get_msg_timestamp.to_sec() - alerts_dict[key]['last_alert_time'].to_sec())
       if last_alert_time > clear_delay:
         purge_alert_list.append(key)
     for alert in purge_alert_list:
@@ -840,7 +840,7 @@ class NepiAiAlertsApp(object):
     active_alert_classes = []
     alert_delay = self.node_if.get_param('alert_delay')
     for key in alerts_dict.keys():
-      first_alert_time =(ros_timestamp.to_sec() - alerts_dict[key]['first_alert_time'].to_sec())
+      first_alert_time =(get_msg_timestamp.to_sec() - alerts_dict[key]['first_alert_time'].to_sec())
       if first_alert_time > alert_delay:
         active_alert = True
         if key not in active_alert_classes:
@@ -851,18 +851,18 @@ class NepiAiAlertsApp(object):
     if len(active_alert_classes) > 0:
       self.publish_alerts(active_alert_classes)
       alerts_save_dict = dict()
-      alerts_save_dict['timestamp'] = nepi_ros.get_datetime_str_from_stamp(ros_timestamp)
+      alerts_save_dict['timestamp'] = nepi_sdk.get_datetime_str_from_stamp(get_msg_timestamp)
       alerts_save_dict['location'] = self.node_if.get_param('location')
       alerts_save_dict['alert_classes_list'] = active_alert_classes
-      self.save_data_if.save_dict2file('alert_data',alerts_save_dict,ros_timestamp,save_check = True)
+      self.save_data_if.save_dict2file('alert_data',alerts_save_dict,get_msg_timestamp,save_check = True)
 
 
     # Do stuff on active alert state
     if active_alert == True:
         trigger_delay = self.node_if.get_param('trigger_delay')
-        trigger_time = (ros_timestamp.to_sec() - self.last_trigger_time.to_sec())
+        trigger_time = (get_msg_timestamp.to_sec() - self.last_trigger_time.to_sec())
         if (trigger_time > trigger_delay):
-          self.last_trigger_time = ros_timestamp
+          self.last_trigger_time = get_msg_timestamp
           self.node_if.publish_pub('alert_trigger_pub', Empty())
           snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
           if snapshot_trigger_enabled:
@@ -884,7 +884,7 @@ class NepiAiAlertsApp(object):
         self.alert_boxes_lock.release()
 
     else:
-      self.last_trigger_time = ros_timestamp
+      self.last_trigger_time = get_msg_timestamp
 
   
                
