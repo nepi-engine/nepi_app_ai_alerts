@@ -401,9 +401,9 @@ class NepiAiAlertsApp(object):
     self.get_ai_mgr_status_service = self.nepi_sdk.connect_service(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
     # Start AI Manager Subscribers
     FOUND_OBJECT_TOPIC = self.ai_mgr_namespace  + "/found_object"
-    self.nepi_sdk.create_subscriber(FOUND_OBJECT_TOPIC, ObjectCount, self.foundObjectCb, queue_size = 1)
+    self.nepi_sdk.create_subscriber(FOUND_OBJECT_TOPIC, ObjectCount, self.foundObjectCb, _queue_size = 1)
     BOUNDING_BOXES_TOPIC = self.ai_mgr_namespace  + "/bounding_boxes"
-    self.nepi_sdk.create_subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, queue_size = 1)
+    self.nepi_sdk.create_subscriber(BOUNDING_BOXES_TOPIC, BoundingBoxes, self.objectDetectedCb, _queue_size = 1)
     time.sleep(1)
 
 
@@ -574,7 +574,7 @@ class NepiAiAlertsApp(object):
               time.sleep(1)
               self.image_sub = None
             self.msg_if.pub_info(" Subscribing to Image topic : " + image_topic)
-            self.image_sub = self.nepi_sdk.create_subscriber(image_topic, Image, self.imageCb, queue_size = 1)
+            self.image_sub = self.nepi_sdk.create_subscriber(image_topic, Image, self.imageCb, _queue_size = 1)
 
         if self.current_image_topic == "None" or self.current_image_topic == "":  # Reset last image topic
           if self.image_sub != None:
