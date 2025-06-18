@@ -53,7 +53,7 @@
   
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>nepi_sdk_interfaces</depend>
+  <depend>nepi_interfaces</depend>
   
   <build_depend>rospy</build_depend>
   <build_depend>std_msgs</build_depend>

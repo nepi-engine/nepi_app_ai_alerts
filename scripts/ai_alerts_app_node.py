@@ -39,9 +39,9 @@ from nepi_sdk import nepi_img
 
 from std_msgs.msg import UInt8, Int32, Float32, Empty, String, Bool, Header
 from sensor_msgs.msg import Image
-from nepi_sdk_interfaces.msg import BoundingBox, BoundingBoxes, ObjectCount
+from nepi_interfaces.msg import BoundingBox, BoundingBoxes, ObjectCount
 
-from nepi_sdk_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierStatusQueryRequest
+from nepi_interfaces.srv import ImageClassifierStatusQuery, ImageClassifierStatusQueryRequest
 
 from nepi_app_ai_alerts.msg import AiAlertsStatus, AiAlerts
 
