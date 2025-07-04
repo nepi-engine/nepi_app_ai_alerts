@@ -75,6 +75,7 @@ class NepiAiAlertsApp(object):
   STATES_DICT = dict()
   TRIGGERS_DICT = dict()
 
+  node_if = None
 
   data_products = ["alert_image","alert_data"]
   
@@ -483,7 +484,8 @@ class NepiAiAlertsApp(object):
 
     status_msg.trigger_delay_sec = self.node_if.get_param('trigger_delay')
     status_msg.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
-    self.node_if.publish_pub('status_pub', status_msg)
+    if self.node_if is not None:
+      self.node_if.publish_pub('status_pub', status_msg)
 
  
   ## Status Publisher
@@ -495,7 +497,8 @@ class NepiAiAlertsApp(object):
       alerts_msg.date_time_str = nepi_sdk.get_datetime_str_from_stamp(stamp)
       alerts_msg.location_str = self.node_if.get_param('location')
       alerts_msg.alert_classes_list = active_alert_boxes
-      self.node_if.publish_pub('alerts_pub', alerts_msg)     
+      if self.node_if is not None:
+        self.node_if.publish_pub('alerts_pub', alerts_msg)     
     
  
 
@@ -863,10 +866,12 @@ class NepiAiAlertsApp(object):
         trigger_time = (get_msg_timestamp.to_sec() - self.last_trigger_time.to_sec())
         if (trigger_time > trigger_delay):
           self.last_trigger_time = get_msg_timestamp
-          self.node_if.publish_pub('alert_trigger_pub', Empty())
+          if self.node_if is not None:
+            self.node_if.publish_pub('alert_trigger_pub', Empty())
           snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
           if snapshot_trigger_enabled:
-            self.node_if.publish_pub('snapshot_pub', Empty())
+            if self.node_if is not None:
+              self.node_if.publish_pub('snapshot_pub', Empty())
 
         if 'ai_alert_state' in self.STATES_DICT.keys():
           self.STATES_DICT['ai_alert_state']['value'] = str(self.active_alert)
