@@ -126,6 +126,21 @@ class NepiAiAlertsApp(object):
   classes_selected = False
 
   last_trigger_time = nepi_sdk.get_msg_time()
+
+
+  app_enabled = False
+  last_classifier = ""
+  selected_classes = []
+
+  alert_delay = self.FACTORY_ALERT_DELAY
+  clear_delay = self.FACTORY_CLEAR_DELAY
+
+  location = ""
+  trigger_delay = self.FACTORY_TRIGGER_DELAY
+
+  snapshot_trigger_enabled = False
+        
+
   #######################
   ### Node Initialization
   DEFAULT_NODE_NAME = "app_ai_alerts" # Can be overwitten by luanch command
@@ -438,31 +453,41 @@ class NepiAiAlertsApp(object):
   #######################
   ### App Config Functions
 
-  def initCb(self,do_updates = False):
-      self.msg_if.pub_info(" Setting init values to param values")
-      sel_classes = self.node_if.get_param('selected_classes')
-      if 'All' in sel_classes:
-        self.addAllClasses()
-      if do_updates == True:
-        self.resetCb(do_updates)
-
-
-  def resetCb(self):
-      self.publish_status()
-
-  def factoryResetCb(self):
-    self.last_image_topic = ""
+def initCb(self,do_updates = False):
+    if self.node_if is not None:
+        
+      self.app_enabled = self.node_if.get_param('app_enabled')
+      self.location_str = self.node_if.get_param('location')
+      self.selected_classes = self.node_if.get_param('selected_classes')
+      self.alert_delay = self.node_if.get_param('alert_delay')
+      self.clear_delay = self.node_if.get_param('clear_delay')
+      self.trigger_delay = self.node_if.get_param('trigger_delay')
+      self.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
+  
+    if do_updates == True:
+      pass
     self.publish_status()
+
+  def resetCb(self,do_updates = True):
+    if do_updates:
+        pass
+    self.initCb
+
+  def factoryResetCb(self,do_updates = True):
+    if do_updates:
+        pass
+    self.initCb
+
 
   ###################
   ## Status Publisher
   def publish_status(self):
     status_msg = AiAlertsStatus()
 
-    status_msg.app_enabled = self.node_if.get_param('app_enabled')
+    status_msg.app_enabled = self.app_enabled
     status_msg.app_msg = self.app_msg
 
-    status_msg.location_str = self.node_if.get_param('location')
+    status_msg.location_str = self.location
     status_msg.classifier_running = self.classifier_running
 
 
@@ -471,7 +496,7 @@ class NepiAiAlertsApp(object):
       avail_classes = ["None"]
     avail_classes = sorted(avail_classes)
     status_msg.available_classes_list = avail_classes
-    selected_classes = self.node_if.get_param('selected_classes')
+    selected_classes = self.selected_classes
     sel_classes = []
     for sel_class in selected_classes:
       if sel_class in avail_classes:
@@ -479,11 +504,11 @@ class NepiAiAlertsApp(object):
     if len(sel_classes) == 0:
       sel_classes = ['None']
     status_msg.selected_classes_list = sel_classes
-    status_msg.alert_delay_sec = self.node_if.get_param('alert_delay')
-    status_msg.clear_delay_sec = self.node_if.get_param('clear_delay')
+    status_msg.alert_delay_sec = self.alert_delay
+    status_msg.clear_delay_sec = self.clear_delay
 
-    status_msg.trigger_delay_sec = self.node_if.get_param('trigger_delay')
-    status_msg.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
+    status_msg.trigger_delay_sec = self.trigger_delay
+    status_msg.snapshot_trigger_enabled = self.snapshot_trigger_enabled
     if self.node_if is not None:
       self.node_if.publish_pub('status_pub', status_msg)
 
@@ -495,7 +520,7 @@ class NepiAiAlertsApp(object):
       stamp = nepi_sdk.get_msg_time()
       alerts_msg.header.stamp = stamp
       alerts_msg.date_time_str = nepi_sdk.get_datetime_str_from_stamp(stamp)
-      alerts_msg.location_str = self.node_if.get_param('location')
+      alerts_msg.location_str = self.location
       alerts_msg.alert_classes_list = active_alert_boxes
       if self.node_if is not None:
         self.node_if.publish_pub('alerts_pub', alerts_msg)     
@@ -506,7 +531,8 @@ class NepiAiAlertsApp(object):
     # Save last image topic for next check
     self.last_image_topic = self.current_image_topic
     update_status = False
-    app_enabled = self.node_if.get_param("~app_enabled")
+    if self.node_if is not None:
+      app_enabled = self.node_if.get_param("~app_enabled")
     app_msg = ""
     if app_enabled == False:
       app_msg += "App not enabled"
@@ -529,7 +555,10 @@ class NepiAiAlertsApp(object):
     except Exception as e:
       self.msg_if.pub_warn("Failed to call AI MGR STATUS service" + str(e))
       self.classifier_running = False
-      self.node_if.set_param('last_classiier', "")
+      self.last_classiier = ""
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('last_classiier', "")
       app_msg += ", AI Detector not connected"
     if ai_mgr_status_response != None:
       app_msg += ", AI Detector connected"
@@ -554,7 +583,10 @@ class NepiAiAlertsApp(object):
             rgb_list.append(rgb)
           self.class_color_list = rgb_list
       self.classes_list = classes_list
-      self.node_if.set_param('last_classiier', self.current_classifier)
+      self.last_classiier = self.current_classifier
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('last_classiier', self.current_classifier)
       #self.msg_if.pub_warn(" Got image topics last and current: " + self.last_image_topic + " " + self.current_image_topic)
 
       # Update Image Topic Subscriber
@@ -589,7 +621,7 @@ class NepiAiAlertsApp(object):
             time.sleep(1)
 
     # Print a message image if needed
-    sel_classes = self.node_if.get_param('selected_classes')
+    sel_classes = self.selected_classes
     classes_selected = False
     for sel_class in sel_classes:
       if sel_class in self.classes_list:
@@ -624,8 +656,10 @@ class NepiAiAlertsApp(object):
   def appEnableCb(self,msg):
     #self.msg_if.pub_info(msg)
     val = msg.data
-    self.node_if.set_param('app_enabled', val)
+    self.app_enabled = val
     self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('app_enabled', val)
 
   def addAllClassesCb(self,msg):
     self.addAllClasses()
@@ -633,67 +667,91 @@ class NepiAiAlertsApp(object):
 
   def addAllClasses(self):
     ##self.msg_if.pub_info(msg)
-    self.node_if.set_param('selected_classes', self.classes_list)
+    self.selected_classes = self.classes_list
+    self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('selected_classes', self.classes_list)
 
 
   def removeAllClassesCb(self,msg):
     ##self.msg_if.pub_info(msg)
-    self.node_if.set_param('selected_classes',[])
+    self.selected_classes = []
     self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('selected_classes',[])
 
   def addClassCb(self,msg):
     ##self.msg_if.pub_info(msg)
     class_name = msg.data
     if class_name in self.classes_list:
-      sel_classes = self.node_if.get_param('selected_classes')
+      sel_classes = self.selected_classes
       if class_name not in sel_classes:
         sel_classes.append(class_name)
-      self.node_if.set_param('selected_classes', sel_classes)
+      self.selected_classes = sel_classes
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('selected_classes', sel_classes)
     self.publish_status()
 
   def removeClassCb(self,msg):
     ##self.msg_if.pub_info(msg)
     class_name = msg.data
-    sel_classes = self.node_if.get_param('selected_classes')
+    sel_classes = self.selected_classes
     if class_name in sel_classes:
       sel_classes.remove(class_name)
-      self.node_if.set_param('selected_classes', sel_classes)
+      self.selected_classes = sel_classes
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('selected_classes', sel_classes)
     self.publish_status()
 
   def setAlertDelayCb(self,msg):
     self.msg_if.pub_info(msg)
     val = msg.data
     if val >= 0 and val <= 1:
-      self.node_if.set_param('alert_delay',val)
+      self.alert_delay = val
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('alert_delay',val)
     self.publish_status()
 
   def setClearDelayCb(self,msg):
     self.msg_if.pub_info(msg)
     val = msg.data
     if val >= 0 and val <= 1:
-      self.node_if.set_param('clear_delay',val)
+      self.clear_delay = val
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('clear_delay',val)
     self.publish_status()
 
   def setLocationCb(self,msg):
     ##self.msg_if.pub_info(msg)
     location_str = msg.data
-    self.node_if.set_param('location', location_str)
+    self.location = location_str
     self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('location', location_str)
 
 
   def setSnapshotDelayCb(self,msg):
     #self.msg_if.pub_info(msg)
     val = msg.data
     if val > 0 :
-      self.node_if.set_param('trigger_delay',val)
+      self.trigger_delay = val
+      self.publish_status()
+      if self.node_if is not None:
+        self.node_if.set_param('trigger_delay',val)
     self.publish_status()
 
         
   def setSnapshotEnableCb(self,msg):
     #self.msg_if.pub_info(msg)
     val = msg.data
-    self.node_if.set_param('snapshot_trigger_enabled',val)
+    self.snapshot_trigger_enabled = val
     self.publish_status()
+    if self.node_if is not None:
+      self.node_if.set_param('snapshot_trigger_enabled',val)
 
          
 
@@ -703,7 +761,7 @@ class NepiAiAlertsApp(object):
 
   ### If object(s) detected, save bounding box info to global
   def objectDetectedCb(self,bounding_boxes_msg):
-    app_enabled = self.node_if.get_param('app_enabled')
+    app_enabled = self.app_enabled
     get_msg_timestamp = bounding_boxes_msg.header.stamp
 
     if app_enabled == False:
@@ -713,7 +771,7 @@ class NepiAiAlertsApp(object):
       self.alert_classes = []
     else:
       alert_boxes = []
-      sel_classes = self.node_if.get_param('selected_classes')
+      sel_classes = self.selected_classes
       for box in bounding_boxes_msg.bounding_boxes:
         if box.Class in sel_classes:
           alert_boxes.append(box)
@@ -757,7 +815,7 @@ class NepiAiAlertsApp(object):
     snapshot_enabled = self.save_data_if.data_product_snapshot_enabled(data_product)
     should_save = (saving_is_enabled and self.save_data_if.data_product_should_save(data_product)) or snapshot_enabled
     #self.msg_if.pub_warn("Checking for save_: " + str(should_save))
-    app_enabled = self.node_if.get_param('app_enabled')
+    app_enabled = self.app_enabled
     
     if app_enabled and self.image_if is not None and self.classifier_running and self.classes_selected:
       if has_subscribers or should_save:
@@ -812,7 +870,7 @@ class NepiAiAlertsApp(object):
 
   ### Monitor Output of AI model to clear detection status
   def foundObjectCb(self,found_obj_msg):
-    app_enabled = self.node_if.get_param('app_enabled')
+    app_enabled = self.app_enabled
     get_msg_timestamp = found_obj_msg.header.stamp
     #Clean Up Detection and Alert data
     if found_obj_msg.count == 0:
@@ -826,7 +884,7 @@ class NepiAiAlertsApp(object):
     self.alerts_dict_lock.release()
 
     # Purge old alerts
-    clear_delay = self.node_if.get_param('clear_delay')
+    clear_delay = self.clear_delay
     purge_alert_list = []
     for key in alerts_dict.keys():
       last_alert_time =(get_msg_timestamp.to_sec() - alerts_dict[key]['last_alert_time'].to_sec())
@@ -841,7 +899,7 @@ class NepiAiAlertsApp(object):
     # Check current alert trigger time
     active_alert = False
     active_alert_classes = []
-    alert_delay = self.node_if.get_param('alert_delay')
+    alert_delay = self.alert_delay
     for key in alerts_dict.keys():
       first_alert_time =(get_msg_timestamp.to_sec() - alerts_dict[key]['first_alert_time'].to_sec())
       if first_alert_time > alert_delay:
@@ -855,20 +913,20 @@ class NepiAiAlertsApp(object):
       self.publish_alerts(active_alert_classes)
       alerts_save_dict = dict()
       alerts_save_dict['timestamp'] = nepi_sdk.get_datetime_str_from_stamp(get_msg_timestamp)
-      alerts_save_dict['location'] = self.node_if.get_param('location')
+      alerts_save_dict['location'] = self.location
       alerts_save_dict['alert_classes_list'] = active_alert_classes
       self.save_data_if.save_dict2file('alert_data',alerts_save_dict,get_msg_timestamp,save_check = True)
 
 
     # Do stuff on active alert state
     if active_alert == True:
-        trigger_delay = self.node_if.get_param('trigger_delay')
+        trigger_delay = self.trigger_delay
         trigger_time = (get_msg_timestamp.to_sec() - self.last_trigger_time.to_sec())
         if (trigger_time > trigger_delay):
           self.last_trigger_time = get_msg_timestamp
           if self.node_if is not None:
             self.node_if.publish_pub('alert_trigger_pub', Empty())
-          snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
+          snapshot_trigger_enabled = self.snapshot_trigger_enabled
           if snapshot_trigger_enabled:
             if self.node_if is not None:
               self.node_if.publish_pub('snapshot_pub', Empty())
