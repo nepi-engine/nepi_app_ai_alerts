@@ -127,19 +127,14 @@ class NepiAiAlertsApp(object):
 
   last_trigger_time = nepi_sdk.get_msg_time()
 
-
   app_enabled = False
   last_classifier = ""
   selected_classes = []
-
   alert_delay = self.FACTORY_ALERT_DELAY
   clear_delay = self.FACTORY_CLEAR_DELAY
-
   location = ""
   trigger_delay = self.FACTORY_TRIGGER_DELAY
-
   snapshot_trigger_enabled = False
-        
 
   #######################
   ### Node Initialization
