@@ -466,12 +466,12 @@ def initCb(self,do_updates = False):
   def resetCb(self,do_updates = True):
     if do_updates:
         pass
-    self.initCb
+    self.initCb()
 
   def factoryResetCb(self,do_updates = True):
     if do_updates:
         pass
-    self.initCb
+    self.initCb()
 
 
   ###################
