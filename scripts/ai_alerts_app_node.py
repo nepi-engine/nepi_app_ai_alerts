@@ -406,7 +406,7 @@ class NepiAiAlertsApp(object):
 
     ##############################
     # Get AI Manager Service Call
-    self.ai_mgr_namespace = self.base_namespace + self.AI_MANAGER_NODE_NAME
+    self.ai_mgr_namespace = nepi_sdk.create_namespace(self.base_namespace,self.AI_MANAGER_NODE_NAME)
 
     AI_MGR_STATUS_SERVICE_NAME = self.ai_mgr_namespace  + "/img_classifier_status_query"
     self.get_ai_mgr_status_service = self.nepi_sdk.connect_service(AI_MGR_STATUS_SERVICE_NAME, ImageClassifierStatusQuery)
