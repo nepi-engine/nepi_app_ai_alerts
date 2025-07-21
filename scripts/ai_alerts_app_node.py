@@ -448,20 +448,20 @@ class NepiAiAlertsApp(object):
   #######################
   ### App Config Functions
 
-def initCb(self,do_updates = False):
-    if self.node_if is not None:
-        
-      self.app_enabled = self.node_if.get_param('app_enabled')
-      self.location_str = self.node_if.get_param('location')
-      self.selected_classes = self.node_if.get_param('selected_classes')
-      self.alert_delay = self.node_if.get_param('alert_delay')
-      self.clear_delay = self.node_if.get_param('clear_delay')
-      self.trigger_delay = self.node_if.get_param('trigger_delay')
-      self.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
-  
-    if do_updates == True:
-      pass
-    self.publish_status()
+  def initCb(self,do_updates = False):
+      if self.node_if is not None:
+          
+        self.app_enabled = self.node_if.get_param('app_enabled')
+        self.location_str = self.node_if.get_param('location')
+        self.selected_classes = self.node_if.get_param('selected_classes')
+        self.alert_delay = self.node_if.get_param('alert_delay')
+        self.clear_delay = self.node_if.get_param('clear_delay')
+        self.trigger_delay = self.node_if.get_param('trigger_delay')
+        self.snapshot_trigger_enabled = self.node_if.get_param('snapshot_trigger_enabled')
+    
+      if do_updates == True:
+        pass
+      self.publish_status()
 
   def resetCb(self,do_updates = True):
       self.msg_if.pub_warn("Reseting")
